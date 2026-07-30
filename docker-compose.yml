@@ -1,0 +1,6 @@
+services:
+  ds:
+    build: .
+    volumes:
+      - ./build:/app/build
+    command: ["python3", "-m", "ds_ontology.build"]

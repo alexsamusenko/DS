@@ -25,11 +25,25 @@ tests/
 
 ## Запуск
 
+### Локально (Python)
+
 ```bash
 pip install -r requirements.txt
 PYTHONPATH=src python3 -m ds_ontology.build   # соберёт build/agro_demo.owl
 python3 -m pytest tests/ -v
 ```
+
+### В Docker
+
+Не требует локального Python/Java — только Docker.
+
+```bash
+docker compose build
+docker compose run --rm ds                                  # демо-сборка -> ./build/agro_demo.owl
+docker compose run --rm ds python3 -m pytest tests/ -v       # весь набор тестов, включая ризонер HermiT
+```
+
+`./build/` на хосте примонтирован в контейнер, поэтому `agro_demo.owl` появится локально после запуска.
 
 ## Дальше по ритму (docs/chapter2_ontology_model.md не финал)
 
