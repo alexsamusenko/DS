@@ -8,18 +8,24 @@
 
 Два режима запуска:
 
-1. Продовый -- дообучение EfficientNet-B0 с весами ImageNet на реальных данных:
-       python3 training/finetune_leaf_classifier.py --data-dir data/plantvillage
-   Требует: (а) доступа к download.pytorch.org для весов ImageNet,
-   (б) данных в формате ImageFolder с подтверждённой лицензией.
+1. Продовый -- дообучение EfficientNet-B0 с весами ImageNet на реальных данных
+   (предобученные веса используются ПО УМОЛЧАНИЮ):
+       python3 training/finetune_leaf_classifier.py --data-dir data/plantdoc --val-subdir test
+   При первом запуске torchvision скачивает веса `EfficientNet_B0_Weights.IMAGENET1K_V1`
+   (~21 МБ, с download.pytorch.org, кешируются в `~/.cache/torch/hub/checkpoints/`) --
+   нужен доступ в сеть один раз. Источник и лицензия весов -- см.
+   docs/governance/licenses.md, раздел «Предобученные веса». Если сеть недоступна
+   (как в песочнице разработки) -- флаг `--no-pretrained` обучает с нуля
+   (`weights=None`); это заведомо хуже на малом датасете (PlantDoc -- 2578 фото)
+   и предназначен только как офлайн-резерв, а не рекомендуемый режим.
 
 2. Smoke-test -- проверка пайплайна на процедурно сгенерированных
    изображениях (НЕ фото растений, просто цветовые паттерны с фиксированной
    зависимостью класс -> паттерн, чтобы было что учить), без сети:
        python3 training/finetune_leaf_classifier.py --smoke-test --epochs 12
-   Модель -- та же архитектура EfficientNet-B0, но со случайной
-   инициализацией (weights=None), т.к. предобученные веса недоступны в этом
-   окружении (см. §docstring продового режима).
+   Модель обучается с нуля (weights=None) -- предобученные веса тут намеренно не
+   нужны: цель smoke-теста -- проверить сходимость пайплайна на контролируемых
+   данных, а не качество transfer learning.
 
 Гиперпараметры по умолчанию и их обоснование -- docs/chapter2/model_training.md, §2.5.4.
 """
@@ -35,7 +41,16 @@ from PIL import Image, ImageDraw
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
-from torchvision.models import efficientnet_b0
+from torchvision.models import EfficientNet_B0_Weights, efficientnet_b0
+
+# Статистика нормализации ImageNet -- обязательна при использовании
+# предобученных весов (EfficientNet_B0_Weights.IMAGENET1K_V1 обучены на входах,
+# нормализованных именно этими mean/std; без этого шага предобученные фильтры
+# получают распределение пикселей, для которого не калибровались, и transfer
+# learning работает существенно хуже). Совпадает с
+# EfficientNet_B0_Weights.IMAGENET1K_V1.transforms().
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
 
 # Классы соответствуют стадиям стадия_riska класса ВредительБолезнь (§2.1.3):
 # отсутствие поражения и три условных типа визуального паттерна поражения.
@@ -109,6 +124,7 @@ class SyntheticLeafDataset(Dataset):
 # ---------------------------------------------------------------------------
 
 def build_transforms(image_size, train):
+    normalize = transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
     if train:
         return transforms.Compose([
             transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
@@ -116,10 +132,12 @@ def build_transforms(image_size, train):
             transforms.RandomRotation(15),
             transforms.ColorJitter(brightness=0.2, contrast=0.2),
             transforms.ToTensor(),
+            normalize,
         ])
     return transforms.Compose([
         transforms.Resize((image_size, image_size)),
         transforms.ToTensor(),
+        normalize,
     ])
 
 
@@ -147,7 +165,7 @@ def restrict_to_common_classes(train_dataset, val_dataset):
 
 
 def build_model(num_classes, pretrained):
-    weights = "IMAGENET1K_V1" if pretrained else None
+    weights = EfficientNet_B0_Weights.IMAGENET1K_V1 if pretrained else None
     model = efficientnet_b0(weights=weights)
     in_features = model.classifier[1].in_features
     model.classifier[1] = nn.Linear(in_features, num_classes)
@@ -185,7 +203,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--data-dir", type=Path, help="Папка в формате ImageFolder (data/<class>/*.jpg). Игнорируется при --smoke-test")
     parser.add_argument("--val-subdir", default="val", help="Имя подпапки для валидации внутри --data-dir (PlantDoc использует 'test', а не 'val')")
-    parser.add_argument("--no-pretrained", action="store_true", help="Не загружать веса ImageNet (нужны, если download.pytorch.org недоступен из текущей сети)")
+    parser.add_argument("--no-pretrained", action="store_true", help="Офлайн-резерв: обучение с нуля вместо весов ImageNet (только если download.pytorch.org недоступен). По умолчанию (без флага) веса ImageNet ИСПОЛЬЗУЮТСЯ -- см. docs/governance/licenses.md")
     parser.add_argument("--smoke-test", action="store_true", help="Офлайн-проверка на процедурно сгенерированных изображениях")
     parser.add_argument("--smoke-images-per-class", type=int, default=150)
     parser.add_argument("--image-size", type=int, default=64, help="64 для smoke-теста (скорость на CPU); 224 для продового EfficientNet-B0")

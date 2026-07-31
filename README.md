@@ -104,12 +104,14 @@ docker compose run --rm train python3 training/finetune_ner.py \
   --epochs 15 --batch-size 8 --lr 2e-5
 
 # классификатор поражений на PlantDoc (см. docs/dataset_cards/plantdoc.md)
+# по умолчанию (без --no-pretrained) скачает веса EfficientNet_B0_Weights.IMAGENET1K_V1
+# с download.pytorch.org при первом запуске -- нужен доступ в сеть
 docker compose run --rm train python3 training/finetune_leaf_classifier.py \
-  --data-dir /app/data/plantdoc --val-subdir test --no-pretrained \
+  --data-dir /app/data/plantdoc --val-subdir test \
   --epochs-head 10 --epochs-full 20
 ```
 
-`--data-dir` в примере выше предполагает, что датасет уже лежит в `./data/plantdoc` на хосте (каталог гитигнорирован — см. `docs/governance/licenses.md` про лицензию PlantDoc, CC BY 4.0). `--no-pretrained` нужен, если веса ImageNet недоступны из текущей сети (см. ниже про smoke-test); при наличии доступа к huggingface.co/download.pytorch.org флаг можно убрать.
+`--data-dir` в примере выше предполагает, что датасет уже лежит в `./data/plantdoc` на хосте (каталог гитигнорирован — см. `docs/governance/licenses.md` про лицензию PlantDoc, CC BY 4.0). Предобученные веса (ImageNet для классификатора, `DeepPavlov/rubert-base-cased` для NER) используются **по умолчанию** — источник и лицензия каждых весов задокументированы в `docs/governance/licenses.md`, раздел «Предобученные веса моделей». Флаги `--no-pretrained` (классификатор) / `--smoke-test` (оба скрипта) — офлайн-резерв на случай, если download.pytorch.org/huggingface.co недоступны из текущей сети (как в песочнице разработки этого проекта).
 
 **GPU**: если на хосте установлен `nvidia-container-toolkit`, раскомментируйте блок `deploy.resources.reservations` для сервиса `train` в `docker-compose.yml` — официальные wheel'ы `torch` с PyPI уже содержат поддержку CUDA, отдельный образ на базе `nvidia/cuda` не требуется.
 
@@ -121,7 +123,7 @@ python3 training/finetune_ner.py --smoke-test --epochs 30 --batch-size 16 --lr 3
 python3 training/finetune_leaf_classifier.py --smoke-test --epochs-head 8 --epochs-full 12
 ```
 
-`--smoke-test` в обоих скриптах работает офлайн (huggingface.co и веса ImageNet недоступны из текущей среды разработки) на программно сгенерированных данных — подтверждённая сходимость (NER: F1 0→1.0 за ~20 эпох; классификатор: точность 0.25→0.55 за 20 эпох). Продовый режим (`--train/--eval` для NER, `--data-dir` для классификатора) требует реальных данных — гиперпараметры и источники данных (PlantDoc, CC BY 4.0) — `docs/chapter2/model_training.md`. Реальный прогон на PlantDoc (`--data-dir data/plantdoc --val-subdir test --no-pretrained`) выполняется локально пользователем — код и датасет готовы, точное обучение вне песочницы разработки.
+`--smoke-test` в обоих скриптах работает офлайн (huggingface.co и download.pytorch.org недоступны из текущей среды разработки) на программно сгенерированных данных, со случайной инициализацией модели — подтверждённая сходимость (NER: F1 0→1.0 за ~20 эпох; классификатор: точность 0.25→0.55 за 20 эпох). Продовый режим (`--train/--eval` для NER, `--data-dir` для классификатора) использует предобученные веса **по умолчанию** (`DeepPavlov/rubert-base-cased` для NER, `EfficientNet_B0_Weights.IMAGENET1K_V1` для классификатора — источники и лицензии в `docs/governance/licenses.md`) и требует реальных данных — гиперпараметры и источники данных (PlantDoc, CC BY 4.0) — `docs/chapter2/model_training.md`. Реальный прогон на PlantDoc (`--data-dir data/plantdoc --val-subdir test`) выполняется локально пользователем с доступом к download.pytorch.org — код и датасет готовы, точное обучение вне песочницы разработки.
 
 ## Дальше по ритму
 
