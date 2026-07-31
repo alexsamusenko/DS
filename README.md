@@ -70,18 +70,50 @@ python3 -m uvicorn service.app:app --reload
 
 ### В Docker
 
-Не требует локального Python/Java — только Docker.
+Не требует локального Python/Java — только Docker. Четыре независимых сценария, каждый — отдельный сервис в `docker-compose.yml` (сборка описания: `docker compose config`):
+
+| Сервис | Назначение | Образ |
+|---|---|---|
+| `app` | запуск единого API (L3-L5) | `Dockerfile` (лёгкий: без torch/transformers) |
+| `test` | полный набор тестов (`pytest tests/ -v`) | `Dockerfile` |
+| `validate` | формальная проверка каждого модуля L2-L5 — сборка всех демо-примеров подряд | `Dockerfile` |
+| `train` | дообучение моделей (`training/`) | `Dockerfile.training` (отдельный, тяжёлый: torch, torchvision, transformers, datasets, accelerate) |
+
+Разделение на два образа осознанное: тяжёлые ML-зависимости нужны только для обучения, и не должны раздувать образ API/тестов.
 
 ```bash
-docker compose build
-docker compose run --rm ds                                 # демо-сборка -> ./build/agro_demo.owl
-docker compose run --rm ds python3 -m pytest tests/ -v      # весь набор тестов, включая ризонер HermiT
-docker compose up api                                       # API на http://localhost:8000
+# API -- демон, поднимается и слушает порт
+docker compose up app                                        # http://localhost:8000/docs
+
+# Тесты и валидация -- разовый прогон, контейнер завершается сам
+docker compose run --rm test
+docker compose run --rm validate                             # -> ./build/*.owl и сравнения RMSE/SHAP в stdout
+
+# Обучение -- разовый прогон, тяжёлый образ (torch и т.п.)
+docker compose run --rm train                                # по умолчанию: NER smoke-test на синтетическом корпусе
 ```
 
-`./build/` на хосте примонтирован в контейнер, поэтому `agro_demo.owl` появится локально после запуска.
+`./build/` (для `validate` и `train`) и `./data/` (для `train`) на хосте примонтированы в контейнер — результаты обучения и артефакты демо-сборки остаются локально после завершения контейнера.
 
-### Дообучение моделей
+Для реального (не smoke-test) обучения на своих данных переопределите команду сервиса `train`, например:
+
+```bash
+# NER на собственном датасете (положите его в ./data и укажите путь внутри контейнера)
+docker compose run --rm train python3 training/finetune_ner.py \
+  --train /app/data/ner_train.jsonl --eval /app/data/ner_eval.jsonl \
+  --epochs 15 --batch-size 8 --lr 2e-5
+
+# классификатор поражений на PlantDoc (см. docs/dataset_cards/plantdoc.md)
+docker compose run --rm train python3 training/finetune_leaf_classifier.py \
+  --data-dir /app/data/plantdoc --val-subdir test --no-pretrained \
+  --epochs-head 10 --epochs-full 20
+```
+
+`--data-dir` в примере выше предполагает, что датасет уже лежит в `./data/plantdoc` на хосте (каталог гитигнорирован — см. `docs/governance/licenses.md` про лицензию PlantDoc, CC BY 4.0). `--no-pretrained` нужен, если веса ImageNet недоступны из текущей сети (см. ниже про smoke-test); при наличии доступа к huggingface.co/download.pytorch.org флаг можно убрать.
+
+**GPU**: если на хосте установлен `nvidia-container-toolkit`, раскомментируйте блок `deploy.resources.reservations` для сервиса `train` в `docker-compose.yml` — официальные wheel'ы `torch` с PyPI уже содержат поддержку CUDA, отдельный образ на базе `nvidia/cuda` не требуется.
+
+### Дообучение моделей (без Docker)
 
 ```bash
 pip install -e ".[training]"    # torch, torchvision, transformers -- тяжёлые зависимости, отдельная группа
@@ -89,7 +121,7 @@ python3 training/finetune_ner.py --smoke-test --epochs 30 --batch-size 16 --lr 3
 python3 training/finetune_leaf_classifier.py --smoke-test --epochs-head 8 --epochs-full 12
 ```
 
-`--smoke-test` в обоих скриптах работает офлайн (huggingface.co и веса ImageNet недоступны из текущей среды разработки) на программно сгенерированных данных — подтверждённая сходимость (NER: F1 0→1.0 за ~20 эпох; классификатор: точность 0.25→0.55 за 20 эпох). Продовый режим (`--train/--eval` для NER, `--data-dir` для классификатора) требует сети и реальных данных — гиперпараметры и источники данных (PlantDoc, CC BY 4.0) — `docs/chapter2/model_training.md`.
+`--smoke-test` в обоих скриптах работает офлайн (huggingface.co и веса ImageNet недоступны из текущей среды разработки) на программно сгенерированных данных — подтверждённая сходимость (NER: F1 0→1.0 за ~20 эпох; классификатор: точность 0.25→0.55 за 20 эпох). Продовый режим (`--train/--eval` для NER, `--data-dir` для классификатора) требует реальных данных — гиперпараметры и источники данных (PlantDoc, CC BY 4.0) — `docs/chapter2/model_training.md`. Реальный прогон на PlantDoc (`--data-dir data/plantdoc --val-subdir test --no-pretrained`) выполняется локально пользователем — код и датасет готовы, точное обучение вне песочницы разработки.
 
 ## Дальше по ритму
 

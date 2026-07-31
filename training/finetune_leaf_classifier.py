@@ -123,6 +123,29 @@ def build_transforms(image_size, train):
     ])
 
 
+def restrict_to_common_classes(train_dataset, val_dataset):
+    """Выровнять классы train/val по пересечению (в PlantDoc train содержит на один
+    класс больше, чем test -- без этого индексы классов молча разъезжаются между
+    train и val, т.к. torchvision.ImageFolder присваивает индексы по алфавиту
+    внутри каждой папки отдельно)."""
+    common = sorted(set(train_dataset.classes) & set(val_dataset.classes))
+    class_to_idx = {name: i for i, name in enumerate(common)}
+
+    for dataset in (train_dataset, val_dataset):
+        old_idx_to_name = {v: k for k, v in dataset.class_to_idx.items()}
+        new_samples = [
+            (path, class_to_idx[old_idx_to_name[old_label]])
+            for path, old_label in dataset.samples
+            if old_idx_to_name[old_label] in class_to_idx
+        ]
+        dataset.samples = new_samples
+        dataset.targets = [label for _, label in new_samples]
+        dataset.classes = common
+        dataset.class_to_idx = class_to_idx
+
+    return common
+
+
 def build_model(num_classes, pretrained):
     weights = "IMAGENET1K_V1" if pretrained else None
     model = efficientnet_b0(weights=weights)
@@ -161,6 +184,8 @@ def run_epoch(model, loader, criterion, optimizer, device, train):
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--data-dir", type=Path, help="Папка в формате ImageFolder (data/<class>/*.jpg). Игнорируется при --smoke-test")
+    parser.add_argument("--val-subdir", default="val", help="Имя подпапки для валидации внутри --data-dir (PlantDoc использует 'test', а не 'val')")
+    parser.add_argument("--no-pretrained", action="store_true", help="Не загружать веса ImageNet (нужны, если download.pytorch.org недоступен из текущей сети)")
     parser.add_argument("--smoke-test", action="store_true", help="Офлайн-проверка на процедурно сгенерированных изображениях")
     parser.add_argument("--smoke-images-per-class", type=int, default=150)
     parser.add_argument("--image-size", type=int, default=64, help="64 для smoke-теста (скорость на CPU); 224 для продового EfficientNet-B0")
@@ -205,10 +230,11 @@ def main():
             )
         print(f"=== Продовое дообучение EfficientNet-B0 на {args.data_dir} ===")
         train_dataset = ImageFolder(args.data_dir / "train", transform=build_transforms(args.image_size, train=True))
-        val_dataset = ImageFolder(args.data_dir / "val", transform=build_transforms(args.image_size, train=False))
-        class_names = train_dataset.classes
+        val_dataset = ImageFolder(args.data_dir / args.val_subdir, transform=build_transforms(args.image_size, train=False))
+        class_names = restrict_to_common_classes(train_dataset, val_dataset)
+        print(f"Классов после выравнивания train/val: {len(class_names)} (было {len(train_dataset.classes)} train)")
         train_subset, val_subset = train_dataset, val_dataset
-        pretrained = True
+        pretrained = not args.no_pretrained
 
     train_loader = DataLoader(train_subset, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_subset, batch_size=args.batch_size, shuffle=False)

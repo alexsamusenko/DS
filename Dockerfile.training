@@ -1,0 +1,23 @@
+# Образ для дообучения моделей (training/), см. docs/chapter2/model_training.md.
+#
+# Отдельный от основного Dockerfile: тяжёлые ML-зависимости (torch, torchvision,
+# transformers, datasets, accelerate) нужны только для обучения, не для app/test/validate --
+# держать их в основном образе означало бы тянуть их даже для простого запуска API.
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY pyproject.toml LICENSE README.md ./
+COPY src/ src/
+COPY training/ training/
+COPY docs/ docs/
+
+RUN pip install --no-cache-dir -e ".[dev,training]"
+
+# GPU: запускайте с `docker compose run --gpus all train ...` (требует
+# установленного nvidia-container-toolkit на хосте с NVIDIA GPU). Отдельный
+# образ на базе nvidia/cuda не нужен -- официальные wheel'ы torch с PyPI уже
+# включают поддержку CUDA и сами используют GPU, если он виден контейнеру.
+
+CMD ["python3", "training/finetune_ner.py", "--smoke-test"]
