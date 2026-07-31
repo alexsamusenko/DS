@@ -93,25 +93,21 @@ docker compose run --rm validate                             # -> ./build/*.owl 
 docker compose run --rm train                                # по умолчанию: NER smoke-test на синтетическом корпусе
 ```
 
-`./build/` (для `validate` и `train`) и `./data/` (для `train`) на хосте примонтированы в контейнер — результаты обучения и артефакты демо-сборки остаются локально после завершения контейнера.
+`./build/` (для `validate` и `train`) и `./data/` (для `train`) на хосте примонтированы в контейнер как `/app/build` и `/app/data`. Оба скрипта дообучения по умолчанию пишут чекпоинты через `--output-dir build/...` (относительный путь, разрешается в `/app/build/...` внутри контейнера) — то есть веса **не теряются с удалением контейнера**, а сразу оказываются на хосте: `./build/ner_model/` и `./build/leaf_classifier/best_model.pt`. Контейнер `train` можно свободно удалять после каждого запуска (`docker compose run --rm ...` уже это делает) — результат остаётся в проекте.
 
-Для реального (не smoke-test) обучения на своих данных переопределите команду сервиса `train`, например:
+Для реального (не smoke-test) обучения на своих данных ничего переопределять не нужно — оба скрипта работают по принципу «положил файлы в стандартное место — запустил без флагов»:
+
+- NER: положите размеченные `ner_train.jsonl` и `ner_eval.jsonl` в `./data/` на хосте.
+- Классификатор поражений: распакуйте датасет (например, PlantDoc — `docs/dataset_cards/plantdoc.md`) в `./data/plantdoc/` в формате `train/<class>/*.jpg` + `test/<class>/*.jpg` (или `val/`, определяется автоматически).
+
+Затем:
 
 ```bash
-# NER на собственном датасете (положите его в ./data и укажите путь внутри контейнера)
-docker compose run --rm train python3 training/finetune_ner.py \
-  --train /app/data/ner_train.jsonl --eval /app/data/ner_eval.jsonl \
-  --epochs 15 --batch-size 8 --lr 2e-5
-
-# классификатор поражений на PlantDoc (см. docs/dataset_cards/plantdoc.md)
-# по умолчанию (без --no-pretrained) скачает веса EfficientNet_B0_Weights.IMAGENET1K_V1
-# с download.pytorch.org при первом запуске -- нужен доступ в сеть
-docker compose run --rm train python3 training/finetune_leaf_classifier.py \
-  --data-dir /app/data/plantdoc --val-subdir test \
-  --epochs-head 10 --epochs-full 20
+docker compose run --rm train python3 training/finetune_ner.py
+docker compose run --rm train python3 training/finetune_leaf_classifier.py --epochs-head 10 --epochs-full 20
 ```
 
-`--data-dir` в примере выше предполагает, что датасет уже лежит в `./data/plantdoc` на хосте (каталог гитигнорирован — см. `docs/governance/licenses.md` про лицензию PlantDoc, CC BY 4.0). Предобученные веса (ImageNet для классификатора, `DeepPavlov/rubert-base-cased` для NER) используются **по умолчанию** — источник и лицензия каждых весов задокументированы в `docs/governance/licenses.md`, раздел «Предобученные веса моделей». Флаги `--no-pretrained` (классификатор) / `--smoke-test` (оба скрипта) — офлайн-резерв на случай, если download.pytorch.org/huggingface.co недоступны из текущей сети (как в песочнице разработки этого проекта).
+Оба скрипта по умолчанию скачивают предобученные веса (`DeepPavlov/rubert-base-cased` для NER, `EfficientNet_B0_Weights.IMAGENET1K_V1` для классификатора — нужен доступ в сеть при первом запуске; источники и лицензии — `docs/governance/licenses.md`, раздел «Предобученные веса моделей»). Другие пути к данным — через `--train`/`--eval` (NER) или `--data-dir`/`--val-subdir` (классификатор). Флаги `--no-pretrained` (классификатор) / `--smoke-test` (оба скрипта) — офлайн-резерв на случай, если download.pytorch.org/huggingface.co недоступны из текущей сети (как в песочнице разработки этого проекта).
 
 **GPU**: если на хосте установлен `nvidia-container-toolkit`, раскомментируйте блок `deploy.resources.reservations` для сервиса `train` в `docker-compose.yml` — официальные wheel'ы `torch` с PyPI уже содержат поддержку CUDA, отдельный образ на базе `nvidia/cuda` не требуется.
 

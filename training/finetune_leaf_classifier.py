@@ -9,8 +9,13 @@
 Два режима запуска:
 
 1. Продовый -- дообучение EfficientNet-B0 с весами ImageNet на реальных данных
-   (предобученные веса используются ПО УМОЛЧАНИЮ):
-       python3 training/finetune_leaf_classifier.py --data-dir data/plantdoc --val-subdir test
+   (предобученные веса используются ПО УМОЛЧАНИЮ). Положите датасет в формате
+   ImageFolder в data/plantdoc/ (train/<class>/*.jpg + test-или-val/<class>/*.jpg,
+   например распакованный PlantDoc -- docs/dataset_cards/plantdoc.md) и запустите
+   без единого флага:
+       python3 training/finetune_leaf_classifier.py
+   Другой путь к данным -- через --data-dir; val/test-подпапка определяется
+   автоматически (--val-subdir -- только если нужно переопределить).
    При первом запуске torchvision скачивает веса `EfficientNet_B0_Weights.IMAGENET1K_V1`
    (~21 МБ, с download.pytorch.org, кешируются в `~/.cache/torch/hub/checkpoints/`) --
    нужен доступ в сеть один раз. Источник и лицензия весов -- см.
@@ -201,8 +206,8 @@ def run_epoch(model, loader, criterion, optimizer, device, train):
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--data-dir", type=Path, help="Папка в формате ImageFolder (data/<class>/*.jpg). Игнорируется при --smoke-test")
-    parser.add_argument("--val-subdir", default="val", help="Имя подпапки для валидации внутри --data-dir (PlantDoc использует 'test', а не 'val')")
+    parser.add_argument("--data-dir", type=Path, default=Path("data/plantdoc"), help="Папка в формате ImageFolder (train/<class>/*.jpg + val-или-test/<class>/*.jpg). По умолчанию data/plantdoc -- положите туда датасет и запускайте вообще без флагов. Игнорируется при --smoke-test")
+    parser.add_argument("--val-subdir", default=None, help="Имя подпапки для валидации внутри --data-dir. Если не указано -- автоопределение: сперва 'val', иначе 'test' (PlantDoc использует 'test')")
     parser.add_argument("--no-pretrained", action="store_true", help="Офлайн-резерв: обучение с нуля вместо весов ImageNet (только если download.pytorch.org недоступен). По умолчанию (без флага) веса ImageNet ИСПОЛЬЗУЮТСЯ -- см. docs/governance/licenses.md")
     parser.add_argument("--smoke-test", action="store_true", help="Офлайн-проверка на процедурно сгенерированных изображениях")
     parser.add_argument("--smoke-images-per-class", type=int, default=150)
@@ -241,14 +246,27 @@ def main():
         train_subset.dataset.transform = train_tf  # аугментации только для обучающей части
         pretrained = False
     else:
-        if not args.data_dir:
+        if not (args.data_dir / "train").exists():
             raise SystemExit(
-                "Для продового режима нужен --data-dir (ImageFolder). "
-                "Для проверки пайплайна без данных используйте --smoke-test."
+                f"Не найдена {args.data_dir / 'train'}. Положите датасет в формате ImageFolder "
+                f"в {args.data_dir} (train/<class>/*.jpg + val-или-test/<class>/*.jpg) -- например, "
+                "распакуйте туда PlantDoc, см. docs/dataset_cards/plantdoc.md -- и запустите скрипт "
+                "снова. Для проверки пайплайна без данных используйте --smoke-test."
             )
-        print(f"=== Продовое дообучение EfficientNet-B0 на {args.data_dir} ===")
+        val_subdir = args.val_subdir
+        if val_subdir is None:
+            if (args.data_dir / "val").exists():
+                val_subdir = "val"
+            elif (args.data_dir / "test").exists():
+                val_subdir = "test"
+            else:
+                raise SystemExit(
+                    f"Не найдена ни {args.data_dir / 'val'}, ни {args.data_dir / 'test'} -- "
+                    "укажите подпапку валидации явно через --val-subdir."
+                )
+        print(f"=== Продовое дообучение EfficientNet-B0 на {args.data_dir} (val: {val_subdir}) ===")
         train_dataset = ImageFolder(args.data_dir / "train", transform=build_transforms(args.image_size, train=True))
-        val_dataset = ImageFolder(args.data_dir / args.val_subdir, transform=build_transforms(args.image_size, train=False))
+        val_dataset = ImageFolder(args.data_dir / val_subdir, transform=build_transforms(args.image_size, train=False))
         class_names = restrict_to_common_classes(train_dataset, val_dataset)
         print(f"Классов после выравнивания train/val: {len(class_names)} (было {len(train_dataset.classes)} train)")
         train_subset, val_subset = train_dataset, val_dataset

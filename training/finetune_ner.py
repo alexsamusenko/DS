@@ -12,10 +12,14 @@
 
 Два режима запуска:
 
-1. Продовый (по умолчанию) -- дообучение реальной модели на реальном корпусе:
-       python3 training/finetune_ner.py --train data/ner_train.jsonl --eval data/ner_eval.jsonl
-   Требует доступа к huggingface.co (скачивание весов DeepPavlov/rubert-base-cased)
-   и размеченного корпуса -- см. docs/datasets.md про сбор корпуса вручную.
+1. Продовый (по умолчанию) -- дообучение реальной модели на реальном корпусе.
+   Положите размеченные JSONL в data/ner_train.jsonl и data/ner_eval.jsonl
+   (формат -- см. выше, сбор корпуса -- docs/datasets.md) и запустите без
+   единого флага:
+       python3 training/finetune_ner.py
+   Другие пути -- через --train/--eval. Требует доступа к huggingface.co
+   (скачивание предобученных весов DeepPavlov/rubert-base-cased, используются
+   ПО УМОЛЧАНИЮ -- см. docs/governance/licenses.md).
 
 2. Smoke-test -- проверка, что пайплайн (данные -> токенизация -> обучение ->
    метрики) работает end-to-end, БЕЗ обращения к интернету:
@@ -387,8 +391,8 @@ def compute_entity_f1(eval_pred):
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--train", type=Path, help="Путь к обучающему JSONL (§docstring). Игнорируется при --smoke-test")
-    parser.add_argument("--eval", type=Path, help="Путь к валидационному JSONL. Игнорируется при --smoke-test")
+    parser.add_argument("--train", type=Path, default=Path("data/ner_train.jsonl"), help="Путь к обучающему JSONL (§docstring). По умолчанию data/ner_train.jsonl. Игнорируется при --smoke-test")
+    parser.add_argument("--eval", type=Path, default=Path("data/ner_eval.jsonl"), help="Путь к валидационному JSONL. По умолчанию data/ner_eval.jsonl. Игнорируется при --smoke-test")
     parser.add_argument("--smoke-test", action="store_true", help="Офлайн-проверка на программно сгенерированном синтетическом корпусе (без сети и внешних данных)")
     parser.add_argument("--smoke-corpus-size", type=int, default=500, help="Размер синтетического корпуса для --smoke-test (§docstring, generate_synthetic_corpus)")
     parser.add_argument("--model-name", default=DEFAULT_MODEL_NAME, help=f"Базовая модель HF Hub (по умолчанию {DEFAULT_MODEL_NAME})")
@@ -429,10 +433,12 @@ def main():
         eval_dataset = ToyNERDataset(eval_examples, tokenizer, args.max_length)
         data_collator = None  # ToyNERDataset уже паддит вручную до max_length
     else:
-        if not args.train or not args.eval:
+        if not args.train.exists() or not args.eval.exists():
             raise SystemExit(
-                "Для продового режима нужны --train и --eval (JSONL с ручной разметкой, "
-                "см. docs/datasets.md). Для проверки пайплайна без данных используйте --smoke-test."
+                f"Не найдены {args.train} и/или {args.eval}. Положите размеченные JSONL "
+                "(формат -- см. докстринг файла, сбор корпуса -- docs/datasets.md) по этим "
+                "путям и запустите снова, либо укажите --train/--eval явно. Для проверки "
+                "пайплайна без данных используйте --smoke-test."
             )
         print(f"=== Продовое дообучение: {args.model_name} ===")
         tokenizer = AutoTokenizer.from_pretrained(args.model_name)
