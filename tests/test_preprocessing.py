@@ -1,4 +1,4 @@
-"""Тесты комбинированного алгоритма предобработки (docs/chapter2_preprocessing_model.md, §2.2)."""
+"""Тесты комбинированного алгоритма предобработки (docs/chapter2/preprocessing_model.md, §2.2)."""
 
 import sys
 from pathlib import Path

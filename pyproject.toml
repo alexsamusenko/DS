@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ds"
+version = "0.1.0"
+description = "Прототип комплексного анализа слабоструктурированных агрономических данных (практическая часть диссертации)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = [
+    "owlready2",
+    "rdflib",
+    "numpy",
+    "pykrige",
+    "pandas",
+    "scikit-learn",
+    "shap",
+    "scipy",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "httpx"]
+# Тяжёлые зависимости для дообучения моделей (docs/chapter2/model_training.md) --
+# отдельная группа, чтобы базовая установка (`pip install -e .`) оставалась лёгкой.
+# seqeval сюда не входит: не собирается из-за конфликта сборочных зависимостей
+# (setuptools_scm), поэтому entity-level F1 реализован вручную в training/finetune_ner.py.
+training = [
+    "torch",
+    "torchvision",
+    "transformers",
+    "datasets",
+    "accelerate",
+    "pillow",
+]
+# Единый API-сервис (service/) поверх L3-L5, см. docs/project_overview.md
+api = [
+    "fastapi",
+    "uvicorn[standard]",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", "src"]

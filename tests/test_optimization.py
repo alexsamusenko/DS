@@ -1,4 +1,4 @@
-"""Тесты оптимизации дифференцированного внесения удобрений (docs/chapter2_optimization_model.md, §2.4)."""
+"""Тесты оптимизации дифференцированного внесения удобрений (docs/chapter2/optimization_model.md, §2.4)."""
 
 import sys
 from pathlib import Path

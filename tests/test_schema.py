@@ -1,4 +1,4 @@
-"""Smoke-тесты для схемы онтологии (docs/chapter2_ontology_model.md, §2.1)."""
+"""Smoke-тесты для схемы онтологии (docs/chapter2/ontology_model.md, §2.1)."""
 
 import sys
 from pathlib import Path

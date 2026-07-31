@@ -1,4 +1,4 @@
-"""Тесты мультимодальной прогнозной модели (docs/chapter2_prediction_model.md, §2.3)."""
+"""Тесты мультимодальной прогнозной модели (docs/chapter2/prediction_model.md, §2.3)."""
 
 import sys
 from pathlib import Path

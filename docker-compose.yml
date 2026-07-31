@@ -4,3 +4,9 @@ services:
     volumes:
       - ./build:/app/build
     command: ["python3", "-m", "ds_ontology.build"]
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    command: ["python3", "-m", "uvicorn", "service.app:app", "--host", "0.0.0.0", "--port", "8000"]

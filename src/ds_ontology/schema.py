@@ -1,6 +1,6 @@
 """OWL 2 DL schema for the DS ontology.
 
-Реализует формальную модель из docs/chapter2_ontology_model.md (§2.1.3-2.1.4):
+Реализует формальную модель из docs/chapter2/ontology_model.md (§2.1.3-2.1.4):
 классы C, объектные отношения R_O, атрибуты (data properties) R_D и аксиомы Ax.
 """
 

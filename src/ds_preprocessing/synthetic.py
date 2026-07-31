@@ -3,7 +3,7 @@
 Используются вместо реальных открытых источников (docs/datasets.md) именно
 здесь, потому что оценка ошибки восстановления требует известного эталона,
 недоступного в реальных пропущенных данных, -- см. §2.2.6, §2.2.7
-docs/chapter2_preprocessing_model.md.
+docs/chapter2/preprocessing_model.md.
 """
 
 import numpy as np
