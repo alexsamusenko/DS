@@ -38,6 +38,7 @@
 import argparse
 import json
 import random
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -321,6 +322,17 @@ def main():
         "task": "leaf_classifier",
         "smoke_test": args.smoke_test,
         "pretrained": pretrained,
+        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "hyperparameters": {
+            "epochs_head": epochs_head,
+            "epochs_full": epochs_full,
+            "lr_head": args.lr_head,
+            "lr_full": args.lr_full,
+            "batch_size": args.batch_size,
+            "image_size": args.image_size,
+            "train_examples": len(train_subset),
+            "val_examples": len(val_subset),
+        },
         "class_names": class_names,
         "best_val_acc": best_val_acc,
         "epoch_log": epoch_log,

@@ -53,7 +53,8 @@ export interface NerHistory {
   task: 'ner'
   smoke_test: boolean
   model_name: string
-  epochs: number
+  finished_at: string
+  hyperparameters: { epochs: number; batch_size: number; lr: number; max_length: number; train_examples: number; eval_examples: number }
   log_history: Record<string, number>[]
   final_eval_metrics: Record<string, number>
 }
@@ -62,6 +63,17 @@ export interface LeafClassifierHistory {
   task: 'leaf_classifier'
   smoke_test: boolean
   pretrained: boolean
+  finished_at: string
+  hyperparameters: {
+    epochs_head: number
+    epochs_full: number
+    lr_head: number
+    lr_full: number
+    batch_size: number
+    image_size: number
+    train_examples: number
+    val_examples: number
+  }
   class_names: string[]
   best_val_acc: number
   epoch_log: { phase: string; epoch: number; train_loss: number; train_acc: number; val_loss: number; val_acc: number }[]
@@ -80,6 +92,10 @@ export interface DatasetEntry {
   slug: string
   title: string
   license_summary: string
+  source: string | null
+  composition: string | null
+  limitations: string | null
+  usage_in_project: string | null
   on_disk: boolean
   file_count?: number
   total_size_bytes?: number

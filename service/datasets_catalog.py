@@ -9,16 +9,29 @@ DATASET_CARDS_DIR = Path("docs/dataset_cards")
 DATA_DIR = Path("data")
 
 
+def _extract_section(text: str, heading: str) -> str | None:
+    match = re.search(rf"^##\s*{re.escape(heading)}\s*\n(.+?)(?=\n##|\Z)", text, re.MULTILINE | re.DOTALL)
+    return match.group(1).strip() if match else None
+
+
 def _parse_card(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
 
     title_match = re.search(r"^#\s*Dataset Card:\s*(.+)$", text, re.MULTILINE)
     title = title_match.group(1).strip() if title_match else path.stem
 
-    license_match = re.search(r"^##\s*Лицензия\s*\n(.+?)(?=\n##|\Z)", text, re.MULTILINE | re.DOTALL)
-    license_text = license_match.group(1).strip() if license_match else "не указана"
-
-    return {"slug": path.stem, "title": title, "license_summary": license_text}
+    # Разделы соответствуют docs/dataset_cards/TEMPLATE.md (по образцу Datasheets
+    # for Datasets, Gebru et al. 2018) -- показываем на фронте все, не только лицензию,
+    # чтобы карточка была информативна сама по себе, без перехода в docs/.
+    return {
+        "slug": path.stem,
+        "title": title,
+        "license_summary": _extract_section(text, "Лицензия") or "не указана",
+        "source": _extract_section(text, "Источник и мотивация"),
+        "composition": _extract_section(text, "Состав"),
+        "limitations": _extract_section(text, "Известные ограничения"),
+        "usage_in_project": _extract_section(text, "Использование в проекте"),
+    }
 
 
 def _dir_stats(path: Path) -> dict:
@@ -54,6 +67,7 @@ def list_datasets() -> list[dict]:
         if name not in cards:
             entries.append({
                 "slug": name, "title": name, "license_summary": "⚠️ карточка датасета не найдена",
+                "source": None, "composition": None, "limitations": None, "usage_in_project": None,
                 "on_disk": True, **_dir_stats(path),
             })
 

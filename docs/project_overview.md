@@ -144,7 +144,7 @@ doses = optimize_with_budget(plots_df, budget=1000.0, dose_min=0, dose_max=150,
 
 **Назначение.** React + TypeScript SPA (Vite): три вкладки без клиентского роутера — статистика обучения (графики по `GET /training/history`), тест прогноза на точке (форма → `POST /prediction/predict` → прогноз + вклад модальностей по SHAP), каталог датасетов (`GET /datasets` + форма загрузки через `POST /datasets/upload`). Графики — `recharts`, без дополнительных UI-библиотек.
 
-Дев-режим — два процесса (backend на 8000, Vite dev-сервер на 5173 с hot reload). Production-сборка (`npm run build` → `frontend/dist/`) отдаётся тем же `service/app.py` с того же порта — `Dockerfile` собирает её двухстадийно (`node:20-slim` только на стадии сборки, в финальном образе Node нет). Подробности — `frontend/README.md`.
+Дев-режим — два процесса (backend на 8000, Vite dev-сервер на 5173 с hot reload), запускаются одной командой `./dev.sh` из корня репозитория. Production-сборка (`npm run build` → `frontend/dist/`) отдаётся тем же `service/app.py` с того же порта — `Dockerfile` собирает её двухстадийно (`node:20-slim` только на стадии сборки, в финальном образе Node нет). Подробности — `frontend/README.md`.
 
 ---
 

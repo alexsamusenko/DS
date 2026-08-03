@@ -2,6 +2,7 @@ import { useState } from 'react'
 import TrainingPage from './pages/TrainingPage'
 import PredictPage from './pages/PredictPage'
 import DatasetsPage from './pages/DatasetsPage'
+import StatusBar from './components/StatusBar'
 
 const TABS = [
   { id: 'training', label: 'Обучение', Component: TrainingPage },
@@ -18,6 +19,9 @@ export default function App() {
       <header className="app-header">
         <h1>DS -- практическая часть диссертации</h1>
         <p>Статистика обучения, ручная проверка прогноза на точке, каталог датасетов (L1-L4)</p>
+        <div style={{ marginTop: '0.6rem' }}>
+          <StatusBar />
+        </div>
       </header>
       <nav className="tabs">
         {TABS.map((t) => (

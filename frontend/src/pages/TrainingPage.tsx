@@ -11,6 +11,38 @@ function mergeNerLog(logHistory: NerHistory['log_history']) {
   return [...byEpoch.values()].sort((a, b) => a.epoch - b.epoch)
 }
 
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+function RawJson({ data }: { data: unknown }) {
+  return (
+    <details style={{ marginTop: '0.75rem' }}>
+      <summary className="hint" style={{ cursor: 'pointer' }}>
+        Полный лог обучения (JSON)
+      </summary>
+      <pre style={{ fontSize: '0.75rem', overflowX: 'auto', background: '#eef1ec', padding: '0.75rem', borderRadius: '6px' }}>
+        {JSON.stringify(data, null, 2)}
+      </pre>
+    </details>
+  )
+}
+
+function HyperparamRow({ params }: { params: Record<string, number | string> }) {
+  return (
+    <div className="stat-row">
+      {Object.entries(params).map(([key, value]) => (
+        <div className="stat" key={key}>
+          <div className="value" style={{ fontSize: '1rem' }}>
+            {value}
+          </div>
+          <div className="label">{key}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function NerCard({ run }: { run: NerHistory | null }) {
   if (!run) {
     return (
@@ -26,24 +58,45 @@ function NerCard({ run }: { run: NerHistory | null }) {
   }
 
   const points = mergeNerLog(run.log_history)
+  const bestF1Point = points.reduce((best, p) => ((p.eval_f1 ?? -1) > (best?.eval_f1 ?? -1) ? p : best), points[0])
 
   return (
     <div className="card">
       <h2>NER (извлечение агрономических сущностей)</h2>
+      <p className="hint">
+        {run.smoke_test ? 'Smoke-test: ' : 'Продовый прогон: '}
+        {run.smoke_test
+          ? 'проверка пайплайна на программно сгенерированном корпусе, модель со случайной инициализацией -- метрики не отражают реальное качество NER.'
+          : `дообучение ${run.model_name} на реальном размеченном корпусе.`}{' '}
+        Завершено {formatDate(run.finished_at)}.
+      </p>
       <div className="stat-row">
-        <div className="stat">
-          <div className="value">{run.smoke_test ? 'smoke-test' : 'прод'}</div>
-          <div className="label">режим</div>
-        </div>
-        <div className="stat">
-          <div className="value">{run.model_name}</div>
-          <div className="label">базовая модель</div>
-        </div>
         <div className="stat">
           <div className="value">{(run.final_eval_metrics.eval_f1 ?? 0).toFixed(3)}</div>
           <div className="label">итоговый entity-level F1</div>
         </div>
+        <div className="stat">
+          <div className="value">{(bestF1Point?.eval_f1 ?? 0).toFixed(3)}</div>
+          <div className="label">лучший F1 (эпоха {bestF1Point?.epoch ?? '—'})</div>
+        </div>
+        <div className="stat">
+          <div className="value">{run.hyperparameters.train_examples}</div>
+          <div className="label">обучающих примеров</div>
+        </div>
+        <div className="stat">
+          <div className="value">{run.hyperparameters.eval_examples}</div>
+          <div className="label">валидационных примеров</div>
+        </div>
       </div>
+      <h3>Гиперпараметры</h3>
+      <HyperparamRow
+        params={{
+          эпохи: run.hyperparameters.epochs,
+          'batch size': run.hyperparameters.batch_size,
+          lr: run.hyperparameters.lr,
+          'max length': run.hyperparameters.max_length,
+        }}
+      />
       <div className="grid-2">
         <div>
           <h3>Loss</h3>
@@ -75,6 +128,7 @@ function NerCard({ run }: { run: NerHistory | null }) {
           </ResponsiveContainer>
         </div>
       </div>
+      <RawJson data={run} />
     </div>
   )
 }
@@ -93,19 +147,18 @@ function LeafClassifierCard({ run }: { run: LeafClassifierHistory | null }) {
   }
 
   const points = run.epoch_log.map((e, i) => ({ ...e, x: i, label: `${e.phase === 'head' ? 'голова' : 'сеть'} #${e.epoch}` }))
+  const bestPoint = points.reduce((best, p) => (p.val_acc > best.val_acc ? p : best), points[0])
 
   return (
     <div className="card">
       <h2>Классификатор поражений листа</h2>
+      <p className="hint">
+        {run.smoke_test
+          ? 'Smoke-test: процедурно сгенерированные изображения (не фото растений), проверка сходимости пайплайна.'
+          : `Продовый прогон на реальных фото, ${run.pretrained ? 'веса ImageNet (transfer learning)' : 'обучение с нуля'}.`}{' '}
+        Завершено {formatDate(run.finished_at)}.
+      </p>
       <div className="stat-row">
-        <div className="stat">
-          <div className="value">{run.smoke_test ? 'smoke-test' : 'прод'}</div>
-          <div className="label">режим</div>
-        </div>
-        <div className="stat">
-          <div className="value">{run.pretrained ? 'ImageNet' : 'с нуля'}</div>
-          <div className="label">инициализация весов</div>
-        </div>
         <div className="stat">
           <div className="value">{run.class_names.length}</div>
           <div className="label">классов</div>
@@ -114,7 +167,27 @@ function LeafClassifierCard({ run }: { run: LeafClassifierHistory | null }) {
           <div className="value">{(run.best_val_acc * 100).toFixed(1)}%</div>
           <div className="label">лучшая val accuracy</div>
         </div>
+        <div className="stat">
+          <div className="value">{bestPoint?.label ?? '—'}</div>
+          <div className="label">на какой эпохе достигнут максимум</div>
+        </div>
+        <div className="stat">
+          <div className="value">
+            {run.hyperparameters.train_examples} / {run.hyperparameters.val_examples}
+          </div>
+          <div className="label">train / val примеров</div>
+        </div>
       </div>
+      <h3>Гиперпараметры</h3>
+      <HyperparamRow
+        params={{
+          'эпох (голова/сеть)': `${run.hyperparameters.epochs_head}/${run.hyperparameters.epochs_full}`,
+          'lr (голова/сеть)': `${run.hyperparameters.lr_head}/${run.hyperparameters.lr_full}`,
+          'batch size': run.hyperparameters.batch_size,
+          'размер изображения': run.hyperparameters.image_size,
+        }}
+      />
+      <p className="hint">Классы: {run.class_names.join(', ')}</p>
       <div className="grid-2">
         <div>
           <h3>Loss</h3>
@@ -145,6 +218,7 @@ function LeafClassifierCard({ run }: { run: LeafClassifierHistory | null }) {
           </ResponsiveContainer>
         </div>
       </div>
+      <RawJson data={run} />
     </div>
   )
 }

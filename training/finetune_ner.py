@@ -42,6 +42,7 @@
 import argparse
 import json
 import random
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -498,7 +499,15 @@ def main():
         "task": "ner",
         "smoke_test": args.smoke_test,
         "model_name": "toy-random-init" if args.smoke_test else args.model_name,
-        "epochs": args.epochs,
+        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "hyperparameters": {
+            "epochs": args.epochs,
+            "batch_size": args.batch_size,
+            "lr": args.lr,
+            "max_length": args.max_length,
+            "train_examples": len(train_dataset),
+            "eval_examples": len(eval_dataset),
+        },
         "log_history": trainer.state.log_history,
         "final_eval_metrics": metrics,
     }
