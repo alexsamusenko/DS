@@ -38,6 +38,7 @@ training = [
 api = [
     "fastapi",
     "uvicorn[standard]",
+    "python-multipart",
 ]
 
 [tool.setuptools.packages.find]

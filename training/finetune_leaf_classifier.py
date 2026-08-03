@@ -36,6 +36,7 @@
 """
 
 import argparse
+import json
 import random
 from pathlib import Path
 
@@ -280,6 +281,7 @@ def main():
 
     best_val_acc = 0.0
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    epoch_log = []
 
     # Фаза 1: замороженный backbone, обучается только голова
     set_backbone_trainable(model, trainable=False)
@@ -290,6 +292,8 @@ def main():
         val_loss, val_acc = run_epoch(model, val_loader, criterion, optimizer, device, train=False)
         print(f"[голова] эпоха {epoch}/{epochs_head}: train_loss={train_loss:.4f} train_acc={train_acc:.4f} "
               f"val_loss={val_loss:.4f} val_acc={val_acc:.4f}")
+        epoch_log.append({"phase": "head", "epoch": epoch, "train_loss": train_loss, "train_acc": train_acc,
+                           "val_loss": val_loss, "val_acc": val_acc})
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             torch.save(model.state_dict(), args.output_dir / "best_model.pt")
@@ -303,6 +307,8 @@ def main():
         val_loss, val_acc = run_epoch(model, val_loader, criterion, optimizer, device, train=False)
         print(f"[полная сеть] эпоха {epoch}/{epochs_full}: train_loss={train_loss:.4f} train_acc={train_acc:.4f} "
               f"val_loss={val_loss:.4f} val_acc={val_acc:.4f}")
+        epoch_log.append({"phase": "full", "epoch": epoch, "train_loss": train_loss, "train_acc": train_acc,
+                           "val_loss": val_loss, "val_acc": val_acc})
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             torch.save(model.state_dict(), args.output_dir / "best_model.pt")
@@ -310,6 +316,17 @@ def main():
     print(f"Лучшая валидационная точность: {best_val_acc:.4f}")
     print(f"Классы: {class_names}")
     print(f"Модель сохранена в {args.output_dir / 'best_model.pt'}")
+
+    history = {
+        "task": "leaf_classifier",
+        "smoke_test": args.smoke_test,
+        "pretrained": pretrained,
+        "class_names": class_names,
+        "best_val_acc": best_val_acc,
+        "epoch_log": epoch_log,
+    }
+    with open(args.output_dir / "history.json", "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
 
 
 if __name__ == "__main__":

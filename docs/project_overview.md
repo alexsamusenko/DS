@@ -128,19 +128,29 @@ doses = optimize_with_budget(plots_df, budget=1000.0, dose_min=0, dose_max=150,
 
 | Файл | Роль |
 |---|---|
-| `app.py` | Сборка приложения, подключение роутеров, `/health` |
+| `app.py` | Сборка приложения, подключение роутеров, `/health`, CORS для dev-фронта (localhost:5173), монтирование собранного `frontend/dist/` статикой (если она собрана — см. `frontend/README.md`) |
 | `schemas.py` | Pydantic-модели запросов/ответов — валидация входа до вызова доменного кода |
 | `routers/preprocessing.py` | `POST /preprocessing/fill-gaps` → `ds_preprocessing.fill_gaps` |
 | `routers/prediction.py` | `POST /prediction/predict`, `GET /prediction/training-summary` → `ds_prediction` (модель кешируется в памяти процесса после первого запроса) |
 | `routers/optimization.py` | `POST /optimization/optimize` → `ds_optimization` (с бюджетом или без, в зависимости от тела запроса) |
+| `routers/training_stats.py` | `GET /training/history` — читает `build/{ner_model,leaf_classifier}/history.json`, которые `training/finetune_*.py` пишут по завершении обучения; ничего не запускает сам |
+| `routers/datasets.py` + `datasets_catalog.py` | `GET /datasets` (сопоставляет `docs/dataset_cards/*.md` с содержимым `data/`), `POST /datasets/upload` (распаковывает `.zip` в `data/<name>/`, с проверкой path traversal и лимитом размера) |
 
 Запуск: `python3 -m uvicorn service.app:app --reload` → документация на `http://localhost:8000/docs` (автогенерируется из Pydantic-схем, ничего не написано вручную).
 
 ---
 
+## `frontend/` — веб-интерфейс поверх `service/`
+
+**Назначение.** React + TypeScript SPA (Vite): три вкладки без клиентского роутера — статистика обучения (графики по `GET /training/history`), тест прогноза на точке (форма → `POST /prediction/predict` → прогноз + вклад модальностей по SHAP), каталог датасетов (`GET /datasets` + форма загрузки через `POST /datasets/upload`). Графики — `recharts`, без дополнительных UI-библиотек.
+
+Дев-режим — два процесса (backend на 8000, Vite dev-сервер на 5173 с hot reload). Production-сборка (`npm run build` → `frontend/dist/`) отдаётся тем же `service/app.py` с того же порта — `Dockerfile` собирает её двухстадийно (`node:20-slim` только на стадии сборки, в финальном образе Node нет). Подробности — `frontend/README.md`.
+
+---
+
 ## `tests/` — что проверяется
 
-68 тестов на момент написания: `test_schema.py` (L2, включая проверку консистентности ризонером HermiT), `test_preprocessing.py` (L3, включая валидацию входа), `test_prediction.py` (L4, включая утечку данных между полями в `GroupKFold`), `test_optimization.py` (L5, включая формальное доказательство превосходства дифференцированного внесения через 15 комбинаций параметров), `test_service.py` (API, каждый маршрут проверяется на содержательный результат, а не только код ответа).
+65 тестов на момент написания: `test_schema.py` (L2, включая проверку консистентности ризонером HermiT), `test_preprocessing.py` (L3, включая валидацию входа), `test_prediction.py` (L4, включая утечку данных между полями в `GroupKFold`), `test_optimization.py` (L5, включая формальное доказательство превосходства дифференцированного внесения через 15 комбинаций параметров), `test_service.py` (API, каждый маршрут проверяется на содержательный результат, а не только код ответа), `test_frontend_api.py` (каталог датасетов, статистика обучения, загрузка архива включая отказ на path traversal и некорректное имя).
 
 ## `docs/` — что где искать
 

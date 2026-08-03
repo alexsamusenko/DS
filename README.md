@@ -12,6 +12,7 @@
 | L5 | Оптимизация дифференцированного внесения удобрений | формализовано + прототип (`docs/chapter2/optimization_model.md`, `src/ds_optimization/`) |
 | L1 (модели) | Стратегия моделей: NER, детекция по фото, LLM только для открытых задач | формализовано (`docs/chapter2/model_training.md`), скрипты — `training/` |
 | L6 | Единый API поверх L3-L5 | реализовано (`service/`) |
+| Фронт | Веб-интерфейс: статистика обучения, тест прогноза на точке, каталог датасетов | реализовано (`frontend/`) |
 | L0 | Источники (реальные открытые данные вместо синтетики) | не начаты (задача 6) |
 
 ## Структура
@@ -38,8 +39,9 @@ src/
   ds_optimization/   -- L5: response.py (Митчерлих), optimize.py (аналитика + Лагранж), validation.py
 
 training/  -- скрипты дообучения (NER, классификатор поражений), см. docs/chapter2/model_training.md
-service/   -- единый FastAPI-сервис поверх L3-L5
-tests/     -- test_schema.py, test_preprocessing.py, test_prediction.py, test_optimization.py, test_service.py
+service/   -- единый FastAPI-сервис поверх L3-L5 + каталог датасетов + статистика обучения
+frontend/  -- React+TS SPA поверх service/ (обучение / тест на точке / датасеты), см. frontend/README.md
+tests/     -- test_schema.py, test_preprocessing.py, test_prediction.py, test_optimization.py, test_service.py, test_frontend_api.py
 ```
 
 Фото и голосовые записи не образуют отдельных модальностей: фото проходит детекцию признаков поражения (`training/finetune_leaf_classifier.py`) и становится экземпляром `ВредительБолезнь` (модальность `img`), голос распознаётся речь-в-текст (ASR) и обрабатывается тем же NER-конвейером, что и письменный текст (модальность `text`) — детали в `docs/chapter2/model_training.md`.
@@ -66,7 +68,11 @@ pip install -e ".[api]"
 python3 -m uvicorn service.app:app --reload
 ```
 
-Документация (Swagger UI, автогенерируется из Pydantic-схем) — `http://localhost:8000/docs`. Маршруты: `POST /preprocessing/fill-gaps`, `POST /prediction/predict`, `GET /prediction/training-summary`, `POST /optimization/optimize`. Подробности — `docs/project_overview.md`, раздел `service/`.
+Документация (Swagger UI, автогенерируется из Pydantic-схем) — `http://localhost:8000/docs`. Маршруты: `POST /preprocessing/fill-gaps`, `POST /prediction/predict`, `GET /prediction/training-summary`, `POST /optimization/optimize`, `GET /training/history`, `GET /datasets`, `POST /datasets/upload`. Подробности — `docs/project_overview.md`, раздел `service/`.
+
+### Веб-интерфейс (frontend/)
+
+Три вкладки поверх API выше — статистика обучения (графики loss/accuracy/F1 по эпохам из `build/*/history.json`), ручной тест прогноза на точке (форма + вклад модальностей по SHAP), каталог датасетов (карточка + наличие на диске + загрузка нового датасета архивом). Разработка требует двух процессов одновременно (бэкенд + Vite dev-сервер с hot reload) — подробности и команды `frontend/README.md`. Для production сборка (`npm run build`) отдаётся тем же `uvicorn service.app:app` с того же порта — отдельный контейнер/порт не нужен, `Dockerfile` уже собирает фронт двухстадийно (см. ниже).
 
 ### В Docker
 
@@ -74,7 +80,7 @@ python3 -m uvicorn service.app:app --reload
 
 | Сервис | Назначение | Образ |
 |---|---|---|
-| `app` | запуск единого API (L3-L5) | `Dockerfile` (лёгкий: без torch/transformers) |
+| `app` | запуск единого API (L3-L5) + веб-интерфейс (frontend/) на том же порту | `Dockerfile` (лёгкий: без torch/transformers; фронт собирается двухстадийно, Node только на стадии сборки) |
 | `test` | полный набор тестов (`pytest tests/ -v`) | `Dockerfile` |
 | `validate` | формальная проверка каждого модуля L2-L5 — сборка всех демо-примеров подряд | `Dockerfile` |
 | `train` | дообучение моделей (`training/`) | `Dockerfile.training` (отдельный, тяжёлый: torch, torchvision, transformers, datasets, accelerate) |

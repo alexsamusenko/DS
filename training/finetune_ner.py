@@ -494,6 +494,17 @@ def main():
     trainer.save_model(str(args.output_dir))
     print(f"Модель сохранена в {args.output_dir}")
 
+    history = {
+        "task": "ner",
+        "smoke_test": args.smoke_test,
+        "model_name": "toy-random-init" if args.smoke_test else args.model_name,
+        "epochs": args.epochs,
+        "log_history": trainer.state.log_history,
+        "final_eval_metrics": metrics,
+    }
+    with open(args.output_dir / "history.json", "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
 
 if __name__ == "__main__":
     main()

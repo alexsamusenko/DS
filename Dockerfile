@@ -1,3 +1,12 @@
+# Стадия 1: сборка фронта (service/ отдаёт его статикой, см. service/app.py) --
+# Node нужен только здесь, в финальном образе его нет.
+FROM node:20-slim AS frontend-build
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.11-slim
 
 # default-jre-headless -- нужен ризонеру HermiT (owlready2 sync_reasoner) для
@@ -13,6 +22,7 @@ COPY src/ src/
 COPY tests/ tests/
 COPY docs/ docs/
 COPY service/ service/
+COPY --from=frontend-build /frontend/dist frontend/dist
 
 RUN pip install --no-cache-dir -e ".[dev,api]"
 

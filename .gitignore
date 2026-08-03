@@ -5,3 +5,5 @@ build/
 *.egg-info/
 .venv/
 data/
+frontend/node_modules/
+frontend/dist/
