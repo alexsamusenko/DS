@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import TrainingPage from './pages/TrainingPage'
 import PredictPage from './pages/PredictPage'
+import OptimizePage from './pages/OptimizePage'
 import DatasetsPage from './pages/DatasetsPage'
 import StatusBar from './components/StatusBar'
 
 const TABS = [
   { id: 'training', label: 'Обучение', Component: TrainingPage },
   { id: 'predict', label: 'Тест на точке', Component: PredictPage },
+  { id: 'optimize', label: 'Внесение удобрений', Component: OptimizePage },
   { id: 'datasets', label: 'Датасеты', Component: DatasetsPage },
 ] as const
 
@@ -18,7 +20,7 @@ export default function App() {
     <>
       <header className="app-header">
         <h1>DS -- практическая часть диссертации</h1>
-        <p>Статистика обучения, ручная проверка прогноза на точке, каталог датасетов (L1-L4)</p>
+        <p>Статистика обучения, ручная проверка прогноза на точке, внесение удобрений с экспортом для внешних систем, каталог датасетов (L1-L7)</p>
         <div style={{ marginTop: '0.6rem' }}>
           <StatusBar />
         </div>

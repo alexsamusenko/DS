@@ -163,7 +163,7 @@ xml_text = export_task_data(plots_df, doses, customer_name="ООО Пример"
 
 ## `frontend/` — веб-интерфейс поверх `service/`
 
-**Назначение.** React + TypeScript SPA (Vite): три вкладки без клиентского роутера — статистика обучения (графики по `GET /training/history`), тест прогноза на точке (форма → `POST /prediction/predict` → прогноз + вклад модальностей по SHAP), каталог датасетов (`GET /datasets` + форма загрузки через `POST /datasets/upload`). Графики — `recharts`, без дополнительных UI-библиотек.
+**Назначение.** React + TypeScript SPA (Vite): четыре вкладки без клиентского роутера — статистика обучения (графики по `GET /training/history`), тест прогноза на точке (форма → `POST /prediction/predict` → прогноз + вклад модальностей по SHAP), внесение удобрений (таблица участков → `POST /optimization/optimize` → дозы + скачивание карты-задания через `POST /integration/export-isoxml`, L5+L7 в одном месте), каталог датасетов (`GET /datasets` + форма загрузки через `POST /datasets/upload`). Графики — `recharts`, без дополнительных UI-библиотек.
 
 Дев-режим — два процесса (backend на 8000, Vite dev-сервер на 5173 с hot reload), запускаются одной командой `./dev.sh` из корня репозитория. Production-сборка (`npm run build` → `frontend/dist/`) отдаётся тем же `service/app.py` с того же порта — `Dockerfile` собирает её двухстадийно (`node:20-slim` только на стадии сборки, в финальном образе Node нет). Подробности — `frontend/README.md`.
 

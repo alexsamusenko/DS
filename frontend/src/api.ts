@@ -111,3 +111,54 @@ export async function uploadDataset(name: string, archive: File): Promise<Datase
   form.append('archive', archive)
   return request<DatasetEntry>('/datasets/upload', { method: 'POST', body: form })
 }
+
+export interface Plot {
+  plot_id: number
+  baseline: number
+  R: number
+  s: number
+  area: number
+}
+
+export interface OptimizeRequest {
+  plots: Plot[]
+  price_yield: number
+  price_fert: number
+  dose_min: number
+  dose_max: number
+  budget: number | null
+}
+
+export interface OptimizeResponse {
+  doses: number[]
+  total_profit: number
+  total_profit_uniform: number
+  profit_gain_percent: number
+}
+
+export function optimize(req: OptimizeRequest) {
+  return request<OptimizeResponse>('/optimization/optimize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+}
+
+export interface IsoxmlExportRequest extends OptimizeRequest {
+  customer_name: string
+  farm_name: string
+  task_designator: string
+}
+
+export async function exportIsoxml(req: IsoxmlExportRequest): Promise<Blob> {
+  const resp = await fetch(`${API_BASE}/integration/export-isoxml`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (!resp.ok) {
+    const detail = await resp.json().catch(() => ({}))
+    throw new Error(detail.detail ?? `${resp.status} ${resp.statusText}`)
+  }
+  return resp.blob()
+}
