@@ -12,10 +12,11 @@
 
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from .auth import require_api_key
 from .routers import datasets, integration, optimization, prediction, preprocessing, training_stats
 
 app = FastAPI(
@@ -39,12 +40,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(preprocessing.router)
-app.include_router(prediction.router)
-app.include_router(optimization.router)
-app.include_router(training_stats.router)
-app.include_router(datasets.router)
-app.include_router(integration.router)
+# /health намеренно без require_api_key -- нужен незащищённым для liveness-проб
+# (Docker healthcheck, балансировщик) независимо от того, настроен ли ключ.
+_protected = [Depends(require_api_key)]
+app.include_router(preprocessing.router, dependencies=_protected)
+app.include_router(prediction.router, dependencies=_protected)
+app.include_router(optimization.router, dependencies=_protected)
+app.include_router(training_stats.router, dependencies=_protected)
+app.include_router(datasets.router, dependencies=_protected)
+app.include_router(integration.router, dependencies=_protected)
 
 
 @app.get("/health", tags=["служебное"], summary="Проверка работоспособности сервиса")

@@ -4,8 +4,17 @@
 // относительный путь работает без изменений (см. service/app.py).
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8000' : ''
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const resp = await fetch(`${API_BASE}${path}`, init)
+// По умолчанию (VITE_API_KEY не задан) сервер не требует ключа (service/auth.py)
+// -- локальный запуск работает без какой-либо настройки, как и раньше. Ключ
+// нужен только если бэкенд явно защищён (DS_API_KEY на сервере) для внешнего
+// доступа -- тогда его нужно задать и здесь на этапе сборки фронта.
+function authHeaders(): Record<string, string> {
+  const key = import.meta.env.VITE_API_KEY as string | undefined
+  return key ? { 'X-API-Key': key } : {}
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const resp = await fetch(`${API_BASE}${path}`, { ...init, headers: { ...authHeaders(), ...init.headers } })
   if (!resp.ok) {
     const detail = await resp.json().catch(() => ({}))
     throw new Error(detail.detail ?? `${resp.status} ${resp.statusText}`)
@@ -153,7 +162,7 @@ export interface IsoxmlExportRequest extends OptimizeRequest {
 export async function exportIsoxml(req: IsoxmlExportRequest): Promise<Blob> {
   const resp = await fetch(`${API_BASE}/integration/export-isoxml`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(req),
   })
   if (!resp.ok) {
