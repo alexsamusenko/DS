@@ -16,13 +16,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from .routers import datasets, optimization, prediction, preprocessing, training_stats
+from .routers import datasets, integration, optimization, prediction, preprocessing, training_stats
 
 app = FastAPI(
     title="DS API",
     description=(
-        "Единая точка доступа к предобработке (L3), мультимодальному прогнозу (L4) "
-        "и оптимизации внесения удобрений (L5) -- практическая часть диссертации."
+        "Единая точка доступа к предобработке (L3), мультимодальному прогнозу (L4), "
+        "оптимизации внесения удобрений (L5) и интеграции с внешними ИС (L7, ISO 11783-10) "
+        "-- практическая часть диссертации."
     ),
     version="0.1.0",
 )
@@ -43,6 +44,7 @@ app.include_router(prediction.router)
 app.include_router(optimization.router)
 app.include_router(training_stats.router)
 app.include_router(datasets.router)
+app.include_router(integration.router)
 
 
 @app.get("/health", tags=["служебное"], summary="Проверка работоспособности сервиса")

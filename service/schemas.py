@@ -73,3 +73,11 @@ class OptimizeResponse(BaseModel):
     total_profit: float = Field(..., description="Суммарная прибыль дифференцированного сценария")
     total_profit_uniform: float = Field(..., description="Прибыль при равномерном внесении того же суммарного количества (§2.4.5)")
     profit_gain_percent: float = Field(..., description="Прирост прибыли дифференцированного сценария относительно равномерного, %")
+
+
+# ---- L7: интеграция с внешними ИС (docs/chapter2/integration_model.md, §2.6) ----
+
+class IsoxmlExportRequest(OptimizeRequest):
+    customer_name: str = Field("Демо-хозяйство", description="Значение CTR/B в TASKDATA.XML")
+    farm_name: str = Field("Демо-поле", description="Значение FRM/B в TASKDATA.XML")
+    task_designator: str = Field("Карта-задание", description="Значение TSK/B в TASKDATA.XML")

@@ -12,6 +12,7 @@
 | L5 | Оптимизация дифференцированного внесения удобрений | формализовано + прототип (`docs/chapter2/optimization_model.md`, `src/ds_optimization/`) |
 | L1 (модели) | Стратегия моделей: NER, детекция по фото, LLM только для открытых задач | формализовано (`docs/chapter2/model_training.md`), скрипты — `training/` |
 | L6 | Единый API поверх L3-L5 | реализовано (`service/`) |
+| L7 | Интеграция с внешними ИС: REST/OpenAPI + экспорт в ISO 11783-10 (ISOXML) | формализовано + прототип (`docs/chapter2/integration_model.md`, `src/ds_integration/`) |
 | Фронт | Веб-интерфейс: статистика обучения, тест прогноза на точке, каталог датасетов | реализовано (`frontend/`) |
 | L0 | Источники (реальные открытые данные вместо синтетики) | не начаты (задача 6) |
 
@@ -20,12 +21,13 @@
 ```
 docs/
   project_overview.md          -- подробное описание назначения каждого модуля (начните отсюда)
-  chapter2/                    -- формальные постановки §2.1-2.5
+  chapter2/                    -- формальные постановки §2.1-2.6
     ontology_model.md            -- O_t = <C, R_O, R_D, Ax, I, tau> (§2.1)
     preprocessing_model.md       -- комбинированное восстановление пропусков (§2.2)
     prediction_model.md          -- мультимодальный прогноз + SHAP (§2.3)
     optimization_model.md        -- дифференцированное внесение удобрений (§2.4)
     model_training.md            -- стратегия моделей: что дообучаем, что промптим (§2.5)
+    integration_model.md         -- интеграция с внешними ИС: REST + ISO 11783-10 (§2.6)
   governance/                  -- документация, обязательная для каждого добавляемого актива
     licenses.md                  -- реестр лицензий (код, зависимости, данные, модели)
     best_practices.md            -- принятые отраслевые стандарты (FAIR, Model Cards, ISOBUS)
@@ -37,11 +39,12 @@ src/
   ds_preprocessing/  -- L3: anomaly.py, spatial.py (кригинг), temporal.py, combine.py, validation.py
   ds_prediction/     -- L4: features.py, model.py (Gradient Boosting + GroupKFold), explain.py (SHAP)
   ds_optimization/   -- L5: response.py (Митчерлих), optimize.py (аналитика + Лагранж), validation.py
+  ds_integration/    -- L7: isoxml_export.py (ISO 11783-10 Task Data), geometry.py
 
 training/  -- скрипты дообучения (NER, классификатор поражений), см. docs/chapter2/model_training.md
-service/   -- единый FastAPI-сервис поверх L3-L5 + каталог датасетов + статистика обучения
+service/   -- единый FastAPI-сервис поверх L3-L5, L7-экспорт, каталог датасетов + статистика обучения
 frontend/  -- React+TS SPA поверх service/ (обучение / тест на точке / датасеты), см. frontend/README.md
-tests/     -- test_schema.py, test_preprocessing.py, test_prediction.py, test_optimization.py, test_service.py, test_frontend_api.py
+tests/     -- test_schema.py, test_preprocessing.py, test_prediction.py, test_optimization.py, test_integration.py, test_service.py, test_frontend_api.py
 ```
 
 Фото и голосовые записи не образуют отдельных модальностей: фото проходит детекцию признаков поражения (`training/finetune_leaf_classifier.py`) и становится экземпляром `ВредительБолезнь` (модальность `img`), голос распознаётся речь-в-текст (ASR) и обрабатывается тем же NER-конвейером, что и письменный текст (модальность `text`) — детали в `docs/chapter2/model_training.md`.
@@ -56,6 +59,7 @@ python3 -m ds_ontology.build                               # соберёт buil
 python3 -m ds_preprocessing.build_demo                     # сравнение RMSE методов восстановления
 python3 -m ds_prediction.build_demo                        # сравнение по модальностям + вклад SHAP
 python3 -m ds_optimization.build_demo                      # дифференцированное внесение vs равномерное
+python3 -m ds_integration.build_demo                        # экспорт карты-задания в ISO 11783-10 -> build/integration/TASKDATA.xml
 python3 -m pytest tests/ -v
 ```
 
@@ -68,7 +72,24 @@ pip install -e ".[api]"
 python3 -m uvicorn service.app:app --reload
 ```
 
-Документация (Swagger UI, автогенерируется из Pydantic-схем) — `http://localhost:8000/docs`. Маршруты: `POST /preprocessing/fill-gaps`, `POST /prediction/predict`, `GET /prediction/training-summary`, `POST /optimization/optimize`, `GET /training/history`, `GET /datasets`, `POST /datasets/upload`. Подробности — `docs/project_overview.md`, раздел `service/`.
+Документация (Swagger UI, автогенерируется из Pydantic-схем) — `http://localhost:8000/docs`. Маршруты: `POST /preprocessing/fill-gaps`, `POST /prediction/predict`, `GET /prediction/training-summary`, `POST /optimization/optimize`, `POST /integration/export-isoxml`, `GET /training/history`, `GET /datasets`, `POST /datasets/upload`. Подробности — `docs/project_overview.md`, раздел `service/`.
+
+### Интеграция с внешними ИС (L7)
+
+Результат L5 (карта-задание) доступен не только через собственный `frontend/`, но и напрямую внешним системам агрохолдинга — два канала (`docs/chapter2/integration_model.md`, §2.6):
+
+- **REST/OpenAPI** — тот же `/openapi.json`, что и у остальных маршрутов: любая внешняя ИС, умеющая HTTP/JSON, читает машиночитаемый контракт без обращения к исходному коду.
+- **ISO 11783-10 (ISOBUS Task Data)** — `POST /integration/export-isoxml` принимает те же данные, что и `/optimization/optimize`, и возвращает готовый `TASKDATA.XML` — формат, который понимают бортовые терминалы сельхозтехники и FMIS независимо от производителя, без частных коннекторов под конкретную систему.
+
+```bash
+curl -X POST http://localhost:8000/integration/export-isoxml \
+  -H "Content-Type: application/json" \
+  -d '{"plots": [{"plot_id": 0, "baseline": 40, "R": 8, "s": 60, "area": 1.2}],
+       "price_yield": 1300, "price_fert": 50}' \
+  -o TASKDATA.xml
+```
+
+Геометрия участков в экспорте — синтетическая (в системе нет реальных границ полей хозяйства, см. `docs/governance/licenses.md`); код показателя DDI для дозы внесения требует сверки с официальным реестром AEF ISOBUS перед использованием с реальной техникой — оба ограничения задокументированы явно, не молча.
 
 ### Веб-интерфейс (frontend/)
 
@@ -88,7 +109,7 @@ python3 -m uvicorn service.app:app --reload
 
 | Сервис | Назначение | Образ |
 |---|---|---|
-| `app` | запуск единого API (L3-L5) + веб-интерфейс (frontend/) на том же порту | `Dockerfile` (лёгкий: без torch/transformers; фронт собирается двухстадийно, Node только на стадии сборки) |
+| `app` | запуск единого API (L3-L5, L7) + веб-интерфейс (frontend/) на том же порту | `Dockerfile` (лёгкий: без torch/transformers; фронт собирается двухстадийно, Node только на стадии сборки) |
 | `test` | полный набор тестов (`pytest tests/ -v`) | `Dockerfile` |
 | `validate` | формальная проверка каждого модуля L2-L5 — сборка всех демо-примеров подряд | `Dockerfile` |
 | `train` | дообучение моделей (`training/`) | `Dockerfile.training` (отдельный, тяжёлый: torch, torchvision, transformers, datasets, accelerate) |
