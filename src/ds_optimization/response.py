@@ -21,3 +21,20 @@ def yield_response(baseline, R, s, d):
 def marginal_response(R, s, d):
     """dY/dd в точке d -- предельная прибавка урожая на единицу дозы."""
     return (R / s) * np.exp(-np.asarray(d) / s)
+
+
+def yield_response_multi(baseline, R, s, d):
+    """Многокомпонентный закон Митчерлиха-Бауле, §2.4.8:
+    Y(d_1..d_J) = baseline + R * Π_j (1 - exp(-d_j/s_j)).
+
+    Мультипликативная (не аддитивная) форма -- закон минимума (Либих): если
+    хотя бы один вид удобрения сильно дефицитен (его множитель близок к 0),
+    всё произведение близко к 0 независимо от избытка остальных видов.
+
+    baseline, R : скаляр или (K,) -- как в yield_response, по числу участков K.
+    s, d : (J,) для одного участка или (K, J) для K участков и J видов удобрений.
+    """
+    s = np.asarray(s, dtype=float)
+    d = np.asarray(d, dtype=float)
+    factor = np.prod(1.0 - np.exp(-d / s), axis=-1)
+    return baseline + R * factor

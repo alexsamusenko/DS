@@ -1,9 +1,10 @@
 """Оптимизация доз по участкам: без бюджета (§2.4.3) и с бюджетом (§2.4.4)."""
 
 import numpy as np
-from scipy.optimize import brentq
+from scipy.optimize import brentq, minimize
 
-from .validation import validate_budget, validate_plots
+from .economics import profit_multi
+from .validation import validate_budget, validate_plots, validate_plots_multi
 
 EPS_R = 1e-9
 
@@ -68,4 +69,37 @@ def optimize_with_budget(plots, budget, dose_min, dose_max, price_yield, price_f
 
     lam_star = brentq(excess, 0.0, lam_hi, xtol=1e-8)
     doses, _ = _total_dose_at_lambda(plots, lam_star, price_yield, price_fert, dose_min, dose_max)
+    return doses
+
+
+def optimize_unconstrained_multi(plots, nutrient_names, dose_min, dose_max, price_yield, price_fert):
+    """Оптимум по каждому участку независимо для J>1 видов удобрений (§2.4.8,
+    закон Митчерлиха-Бауле). В отличие от optimize_unconstrained, решается
+    численно (L-BFGS-B) на каждом участке -- при J>1 произведение вогнутых по
+    каждой dose_j функций не обязано быть совместно вогнутым, аналитического
+    решения через условие первого порядка, как при J=1, в общем виде нет.
+
+    plots : DataFrame со столбцами baseline, R, area, s_<nutrient> для каждого nutrient_names.
+    price_fert : (J,) -- цена по видам удобрений, тот же порядок, что nutrient_names.
+    Возвращает np.ndarray формы (K, J) -- доза по каждому участку и виду удобрения.
+    """
+    validate_plots_multi(plots, nutrient_names, dose_min, dose_max, price_yield, price_fert)
+
+    s_columns = [f"s_{n}" for n in nutrient_names]
+    J = len(nutrient_names)
+    price_fert = np.asarray(price_fert, dtype=float)
+    bounds = [(dose_min, dose_max)] * J
+    x0 = np.full(J, (dose_min + dose_max) / 2)
+
+    doses = np.empty((len(plots), J))
+    for i, row in enumerate(plots.itertuples()):
+        s = np.array([getattr(row, col) for col in s_columns])
+        baseline, R = row.baseline, row.R
+
+        def neg_profit(d, baseline=baseline, R=R, s=s):
+            return -profit_multi(baseline, R, s, d, price_yield, price_fert)
+
+        result = minimize(neg_profit, x0, bounds=bounds, method="L-BFGS-B")
+        doses[i] = np.clip(result.x, dose_min, dose_max)
+
     return doses
