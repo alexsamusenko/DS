@@ -6,9 +6,12 @@ state в `src/App.tsx`, отдельных URL не заводили -- стра
 глубокие ссылки не нужны):
 
 - **Обучение** (`src/pages/TrainingPage.tsx`) -- графики loss/accuracy/F1 по
-  эпохам для NER и классификатора поражений, читает
-  `GET /training/history` (сервис читает `build/*/history.json`, которые
-  `training/finetune_*.py` пишут по завершении обучения).
+  эпохам для NER и классификатора поражений, **в прямом эфире**: подключается
+  через `EventSource` к `GET /training/history/stream` (SSE), а не разово
+  запрашивает `GET /training/history` -- сервер сам присылает новый снимок,
+  как только `training/finetune_*.py` дописывает очередную эпоху в
+  `build/*/history.json`. Индикатор рядом с заголовком карточки показывает
+  `running`/`completed`.
 - **Тест на точке** (`src/pages/PredictPage.tsx`) -- форма из 10 признаков
   (§2.3.2), вызывает `POST /prediction/predict`, показывает прогноз и вклад
   модальностей по SHAP (§2.3.4) в виде столбчатой диаграммы.

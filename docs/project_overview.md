@@ -141,6 +141,8 @@ xml_text = export_task_data(plots_df, doses, customer_name="ООО Пример"
 
 Оба скрипта проверены end-to-end в этой сессии: NER сходится с F1=0 до F1=1.0 за ~20 эпох на корпусе из 500 сгенерированных предложений; классификатор поднимает валидационную точность с уровня случайного угадывания (0.25 для 4 классов) до ~0.55 за 20 эпох на 1200 синтетических изображениях.
 
+Оба скрипта пишут `history.json` после **каждой** эпохи (не только в конце), со статусом `"running"`/`"completed"` — NER через `TrainerCallback.on_evaluate`, классификатор — вручную в цикле обучения. Это даёт наблюдение за обучением в прямом эфире: `GET /training/history/stream` (§2.5.6, `docs/chapter2/model_training.md`) отдаёт SSE-поток, который фронт слушает через `EventSource` — графики на вкладке «Обучение» обновляются сами по мере того, как процесс обучения (запущенный отдельно) дописывает эпохи.
+
 ---
 
 ## `service/` — единый API (L6)
@@ -155,7 +157,7 @@ xml_text = export_task_data(plots_df, doses, customer_name="ООО Пример"
 | `routers/preprocessing.py` | `POST /preprocessing/fill-gaps` → `ds_preprocessing.fill_gaps` |
 | `routers/prediction.py` | `POST /prediction/predict`, `GET /prediction/training-summary` → `ds_prediction` (модель кешируется в памяти процесса после первого запроса, а также на диск — `build/models/l4_gradient_boosting.joblib` — чтобы не переобучаться заново при каждом рестарте процесса; кеш инвалидируется по версии/составу модальностей) |
 | `routers/optimization.py` | `POST /optimization/optimize` → `ds_optimization` (с бюджетом или без, в зависимости от тела запроса) |
-| `routers/training_stats.py` | `GET /training/history` — читает `build/{ner_model,leaf_classifier}/history.json`, которые `training/finetune_*.py` пишут по завершении обучения; ничего не запускает сам |
+| `routers/training_stats.py` | `GET /training/history` — разовый снимок `build/{ner_model,leaf_classifier}/history.json`; `GET /training/history/stream` — то же в виде SSE-потока, обновляется по мере того, как `training/finetune_*.py` дописывает эпохи (опрос mtime файла раз в секунду); ничего не запускает сам |
 | `routers/datasets.py` + `datasets_catalog.py` | `GET /datasets` (сопоставляет `docs/dataset_cards/*.md` с содержимым `data/`), `POST /datasets/upload` (распаковывает `.zip` в `data/<name>/`, с проверкой path traversal и лимитом размера) |
 
 Запуск: `python3 -m uvicorn service.app:app --reload` → документация на `http://localhost:8000/docs` (автогенерируется из Pydantic-схем, ничего не написано вручную).
@@ -164,7 +166,7 @@ xml_text = export_task_data(plots_df, doses, customer_name="ООО Пример"
 
 ## `frontend/` — веб-интерфейс поверх `service/`
 
-**Назначение.** React + TypeScript SPA (Vite): четыре вкладки без клиентского роутера — статистика обучения (графики по `GET /training/history`), тест прогноза на точке (форма → `POST /prediction/predict` → прогноз + вклад модальностей по SHAP), внесение удобрений (таблица участков → `POST /optimization/optimize` → дозы + скачивание карты-задания через `POST /integration/export-isoxml`, L5+L7 в одном месте), каталог датасетов (`GET /datasets` + форма загрузки через `POST /datasets/upload`). Графики — `recharts`, без дополнительных UI-библиотек.
+**Назначение.** React + TypeScript SPA (Vite): четыре вкладки без клиентского роутера — статистика обучения в прямом эфире (`EventSource` на `GET /training/history/stream` — графики обновляются сами по мере обучения, без перезагрузки страницы, §2.5.6 `docs/chapter2/model_training.md`), тест прогноза на точке (форма → `POST /prediction/predict` → прогноз + вклад модальностей по SHAP), внесение удобрений (таблица участков → `POST /optimization/optimize` → дозы + скачивание карты-задания через `POST /integration/export-isoxml`, L5+L7 в одном месте), каталог датасетов (`GET /datasets` + форма загрузки через `POST /datasets/upload`). Графики — `recharts`, без дополнительных UI-библиотек.
 
 Дев-режим — два процесса (backend на 8000, Vite dev-сервер на 5173 с hot reload), запускаются одной командой `./dev.sh` из корня репозитория. Production-сборка (`npm run build` → `frontend/dist/`) отдаётся тем же `service/app.py` с того же порта — `Dockerfile` собирает её двухстадийно (`node:20-slim` только на стадии сборки, в финальном образе Node нет). Подробности — `frontend/README.md`.
 
@@ -172,7 +174,7 @@ xml_text = export_task_data(plots_df, doses, customer_name="ООО Пример"
 
 ## `tests/` — что проверяется
 
-89 тестов на момент написания: `test_schema.py` (L2, включая проверку консистентности ризонером HermiT), `test_preprocessing.py` (L3, включая валидацию входа), `test_prediction.py` (L4, включая утечку данных между полями в `GroupKFold`), `test_optimization.py` (L5, включая формальное доказательство превосходства дифференцированного внесения через 15 комбинаций параметров), `test_optimization_multi.py` (L5, многокомпонентное внесение: закон минимума Либиха, численный оптимизатор при J=1 сходится к тому же решению, что аналитический), `test_integration.py` (L7, включая корректность геометрии и совпадение экспортированных доз с входными), `test_service.py` (API, каждый маршрут проверяется на содержательный результат, а не только код ответа), `test_frontend_api.py` (каталог датасетов, статистика обучения, загрузка архива включая отказ на path traversal и некорректное имя), `test_auth.py` (опциональный API-ключ: `/health` открыт всегда, остальные маршруты — 401 без/с неверным ключом, 200 с верным, и открытый доступ по умолчанию без `DS_API_KEY`), `test_model_persistence.py` (дисковый кеш L4-модели переживает рестарт процесса и корректно инвалидируется при изменении конфигурации обучения).
+94 теста на момент написания: `test_schema.py` (L2, включая проверку консистентности ризонером HermiT), `test_preprocessing.py` (L3, включая валидацию входа), `test_prediction.py` (L4, включая утечку данных между полями в `GroupKFold`), `test_optimization.py` (L5, включая формальное доказательство превосходства дифференцированного внесения через 15 комбинаций параметров), `test_optimization_multi.py` (L5, многокомпонентное внесение: закон минимума Либиха, численный оптимизатор при J=1 сходится к тому же решению, что аналитический), `test_integration.py` (L7, включая корректность геометрии и совпадение экспортированных доз с входными), `test_service.py` (API, каждый маршрут проверяется на содержательный результат, а не только код ответа), `test_frontend_api.py` (каталог датасетов, статистика обучения, загрузка архива включая отказ на path traversal и некорректное имя), `test_auth.py` (опциональный API-ключ, включая query-параметр `?api_key=` для `EventSource`: `/health` открыт всегда, остальные маршруты — 401 без/с неверным ключом, 200 с верным, и открытый доступ по умолчанию без `DS_API_KEY`), `test_model_persistence.py` (дисковый кеш L4-модели переживает рестарт процесса и корректно инвалидируется при изменении конфигурации обучения), `test_training_stream.py` (SSE-поток статистики обучения: начальный снимок сразу, тишина без изменений на диске, новое событие при изменении файла).
 
 ## `docs/` — что где искать
 

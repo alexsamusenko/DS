@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { trainingHistory, type LeafClassifierHistory, type NerHistory, type TrainingHistoryResponse } from '../api'
+import { trainingHistoryStreamUrl, type LeafClassifierHistory, type NerHistory, type TrainingHistoryResponse } from '../api'
 
 function mergeNerLog(logHistory: NerHistory['log_history']) {
   const byEpoch = new Map<number, Record<string, number>>()
@@ -13,6 +13,26 @@ function mergeNerLog(logHistory: NerHistory['log_history']) {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+function StatusBadge({ status }: { status: 'running' | 'completed' }) {
+  if (status === 'running') {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--accent-dark)', fontWeight: 600, fontSize: '0.85rem' }}>
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: 'var(--accent)',
+            animation: 'ds-pulse 1.2s ease-in-out infinite',
+          }}
+        />
+        обучение идёт
+      </span>
+    )
+  }
+  return <span className="badge ok">завершено</span>
 }
 
 function RawJson({ data }: { data: unknown }) {
@@ -59,21 +79,25 @@ function NerCard({ run }: { run: NerHistory | null }) {
 
   const points = mergeNerLog(run.log_history)
   const bestF1Point = points.reduce((best, p) => ((p.eval_f1 ?? -1) > (best?.eval_f1 ?? -1) ? p : best), points[0])
+  const finalF1 = run.final_eval_metrics?.eval_f1
 
   return (
     <div className="card">
-      <h2>NER (извлечение агрономических сущностей)</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <h2 style={{ margin: 0 }}>NER (извлечение агрономических сущностей)</h2>
+        <StatusBadge status={run.status} />
+      </div>
       <p className="hint">
         {run.smoke_test ? 'Smoke-test: ' : 'Продовый прогон: '}
         {run.smoke_test
           ? 'проверка пайплайна на программно сгенерированном корпусе, модель со случайной инициализацией -- метрики не отражают реальное качество NER.'
           : `дообучение ${run.model_name} на реальном размеченном корпусе.`}{' '}
-        Завершено {formatDate(run.finished_at)}.
+        {run.status === 'running' ? 'Обновлено' : 'Завершено'} {formatDate(run.updated_at)}.
       </p>
       <div className="stat-row">
         <div className="stat">
-          <div className="value">{(run.final_eval_metrics.eval_f1 ?? 0).toFixed(3)}</div>
-          <div className="label">итоговый entity-level F1</div>
+          <div className="value">{finalF1 !== undefined ? finalF1.toFixed(3) : '—'}</div>
+          <div className="label">итоговый entity-level F1{finalF1 === undefined ? ' (ждём завершения)' : ''}</div>
         </div>
         <div className="stat">
           <div className="value">{(bestF1Point?.eval_f1 ?? 0).toFixed(3)}</div>
@@ -151,12 +175,15 @@ function LeafClassifierCard({ run }: { run: LeafClassifierHistory | null }) {
 
   return (
     <div className="card">
-      <h2>Классификатор поражений листа</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <h2 style={{ margin: 0 }}>Классификатор поражений листа</h2>
+        <StatusBadge status={run.status} />
+      </div>
       <p className="hint">
         {run.smoke_test
           ? 'Smoke-test: процедурно сгенерированные изображения (не фото растений), проверка сходимости пайплайна.'
           : `Продовый прогон на реальных фото, ${run.pretrained ? 'веса ImageNet (transfer learning)' : 'обучение с нуля'}.`}{' '}
-        Завершено {formatDate(run.finished_at)}.
+        {run.status === 'running' ? 'Обновлено' : 'Завершено'} {formatDate(run.updated_at)}.
       </p>
       <div className="stat-row">
         <div className="stat">
@@ -226,16 +253,40 @@ function LeafClassifierCard({ run }: { run: LeafClassifierHistory | null }) {
 export default function TrainingPage() {
   const [history, setHistory] = useState<TrainingHistoryResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [connected, setConnected] = useState(false)
 
   useEffect(() => {
-    trainingHistory().then(setHistory).catch((e) => setError(String(e.message ?? e)))
+    // SSE, а не единоразовый fetch -- сервер сам присылает новый снимок, как
+    // только training/finetune_*.py допишет очередную эпоху в history.json
+    // (GET /training/history/stream, опрос файла раз в секунду на бэкенде).
+    // EventSource переподключается сам при обрыве -- отдельная логика ретраев не нужна.
+    const source = new EventSource(trainingHistoryStreamUrl())
+
+    source.onopen = () => setConnected(true)
+    source.onerror = () => setConnected(false)
+    source.onmessage = (event) => {
+      try {
+        setHistory(JSON.parse(event.data))
+        setError(null)
+      } catch {
+        setError('Не удалось разобрать данные потока обучения')
+      }
+    }
+
+    return () => source.close()
   }, [])
 
   if (error) return <div className="error-banner">{error}</div>
-  if (!history) return <p className="muted">Загрузка...</p>
+  if (!history) return <p className="muted">Подключаюсь к потоку обучения...</p>
 
   return (
     <>
+      <p className="hint" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span
+          style={{ width: 7, height: 7, borderRadius: '50%', background: connected ? 'var(--ok)' : 'var(--danger)', display: 'inline-block' }}
+        />
+        {connected ? 'живой поток подключён -- страница обновляется сама по мере обучения' : 'поток отключён, переподключение...'}
+      </p>
       <NerCard run={history.ner} />
       <LeafClassifierCard run={history.leaf_classifier} />
     </>

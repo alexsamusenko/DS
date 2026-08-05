@@ -13,6 +13,15 @@ function authHeaders(): Record<string, string> {
   return key ? { 'X-API-Key': key } : {}
 }
 
+// EventSource (используется для живого потока обучения) не умеет слать кастомные
+// заголовки -- ключ, если он задан, передаётся через query-параметр (service/auth.py
+// принимает оба варианта).
+export function trainingHistoryStreamUrl(): string {
+  const key = import.meta.env.VITE_API_KEY as string | undefined
+  const query = key ? `?api_key=${encodeURIComponent(key)}` : ''
+  return `${API_BASE}/training/history/stream${query}`
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const resp = await fetch(`${API_BASE}${path}`, { ...init, headers: { ...authHeaders(), ...init.headers } })
   if (!resp.ok) {
@@ -60,19 +69,23 @@ export function trainingSummary() {
 
 export interface NerHistory {
   task: 'ner'
+  status: 'running' | 'completed'
   smoke_test: boolean
   model_name: string
-  finished_at: string
+  updated_at: string
   hyperparameters: { epochs: number; batch_size: number; lr: number; max_length: number; train_examples: number; eval_examples: number }
   log_history: Record<string, number>[]
-  final_eval_metrics: Record<string, number>
+  // Появляется только когда status === 'completed' -- во время обучения (running)
+  // финальная оценка ещё не посчитана, есть только log_history по эпохам.
+  final_eval_metrics?: Record<string, number>
 }
 
 export interface LeafClassifierHistory {
   task: 'leaf_classifier'
+  status: 'running' | 'completed'
   smoke_test: boolean
   pretrained: boolean
-  finished_at: string
+  updated_at: string
   hyperparameters: {
     epochs_head: number
     epochs_full: number

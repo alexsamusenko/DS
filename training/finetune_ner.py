@@ -54,6 +54,7 @@ from transformers import (
     BertConfig,
     BertForTokenClassification,
     Trainer,
+    TrainerCallback,
     TrainingArguments,
 )
 
@@ -406,6 +407,28 @@ def parse_args():
     return parser.parse_args()
 
 
+class HistoryCheckpointCallback(TrainerCallback):
+    """Пишет history.json после КАЖДОЙ эпохи (on_evaluate, т.к. eval_strategy="epoch"),
+    а не только по завершении всего обучения -- это то, что позволяет фронту
+    показывать прогресс "в прямом эфире" (GET /training/history/stream опрашивает
+    mtime этого файла), а не только итог уже завершённого прогона."""
+
+    def __init__(self, history_path, base_history):
+        self.history_path = history_path
+        self.base_history = base_history
+
+    def _write(self, status, trainer_state):
+        history = {**self.base_history, "status": status, "updated_at": datetime.now(timezone.utc).isoformat(),
+                   "log_history": trainer_state.log_history}
+        with open(self.history_path, "w", encoding="utf-8") as f:
+            json.dump(history, f, ensure_ascii=False, indent=2)
+
+    def on_evaluate(self, args, state, control, **kwargs):
+        # Финальная запись (status="completed", final_eval_metrics) делается
+        # явно в main() после trainer.evaluate() -- здесь только промежуточные.
+        self._write("running", state)
+
+
 def main():
     args = parse_args()
     set_seed(args.seed)
@@ -470,6 +493,22 @@ def main():
         disable_tqdm=True,
     )
 
+    args.output_dir.mkdir(parents=True, exist_ok=True)  # нужна до старта обучения -- сюда пишутся чекпоинты истории
+    base_history = {
+        "task": "ner",
+        "smoke_test": args.smoke_test,
+        "model_name": "toy-random-init" if args.smoke_test else args.model_name,
+        "hyperparameters": {
+            "epochs": args.epochs,
+            "batch_size": args.batch_size,
+            "lr": args.lr,
+            "max_length": args.max_length,
+            "train_examples": len(train_dataset),
+            "eval_examples": len(eval_dataset),
+        },
+    }
+    history_callback = HistoryCheckpointCallback(args.output_dir / "history.json", base_history)
+
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -477,6 +516,7 @@ def main():
         eval_dataset=eval_dataset,
         data_collator=data_collator,
         compute_metrics=compute_entity_f1,
+        callbacks=[history_callback],
     )
 
     trainer.train()
@@ -491,23 +531,13 @@ def main():
         train_metrics = trainer.evaluate(eval_dataset=train_dataset)
         print("Метрики на обучающей выборке (диагностика сходимости пайплайна):", train_metrics)
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
     trainer.save_model(str(args.output_dir))
     print(f"Модель сохранена в {args.output_dir}")
 
     history = {
-        "task": "ner",
-        "smoke_test": args.smoke_test,
-        "model_name": "toy-random-init" if args.smoke_test else args.model_name,
-        "finished_at": datetime.now(timezone.utc).isoformat(),
-        "hyperparameters": {
-            "epochs": args.epochs,
-            "batch_size": args.batch_size,
-            "lr": args.lr,
-            "max_length": args.max_length,
-            "train_examples": len(train_dataset),
-            "eval_examples": len(eval_dataset),
-        },
+        **base_history,
+        "status": "completed",
+        "updated_at": datetime.now(timezone.utc).isoformat(),
         "log_history": trainer.state.log_history,
         "final_eval_metrics": metrics,
     }

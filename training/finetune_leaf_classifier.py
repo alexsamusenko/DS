@@ -283,6 +283,35 @@ def main():
     best_val_acc = 0.0
     args.output_dir.mkdir(parents=True, exist_ok=True)
     epoch_log = []
+    history_path = args.output_dir / "history.json"
+
+    def write_history(status):
+        # Пишется после КАЖДОЙ эпохи (не только в конце) -- это то, что
+        # позволяет фронту показывать прогресс обучения "в прямом эфире"
+        # (GET /training/history/stream опрашивает mtime этого файла),
+        # а не только итог уже завершённого прогона.
+        history = {
+            "task": "leaf_classifier",
+            "status": status,
+            "smoke_test": args.smoke_test,
+            "pretrained": pretrained,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "hyperparameters": {
+                "epochs_head": epochs_head,
+                "epochs_full": epochs_full,
+                "lr_head": args.lr_head,
+                "lr_full": args.lr_full,
+                "batch_size": args.batch_size,
+                "image_size": args.image_size,
+                "train_examples": len(train_subset),
+                "val_examples": len(val_subset),
+            },
+            "class_names": class_names,
+            "best_val_acc": best_val_acc,
+            "epoch_log": epoch_log,
+        }
+        with open(history_path, "w", encoding="utf-8") as f:
+            json.dump(history, f, ensure_ascii=False, indent=2)
 
     # Фаза 1: замороженный backbone, обучается только голова
     set_backbone_trainable(model, trainable=False)
@@ -298,6 +327,7 @@ def main():
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             torch.save(model.state_dict(), args.output_dir / "best_model.pt")
+        write_history("running")
 
     # Фаза 2: разморозка всей сети, малый LR
     set_backbone_trainable(model, trainable=True)
@@ -313,32 +343,12 @@ def main():
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             torch.save(model.state_dict(), args.output_dir / "best_model.pt")
+        write_history("running")
 
     print(f"Лучшая валидационная точность: {best_val_acc:.4f}")
     print(f"Классы: {class_names}")
     print(f"Модель сохранена в {args.output_dir / 'best_model.pt'}")
-
-    history = {
-        "task": "leaf_classifier",
-        "smoke_test": args.smoke_test,
-        "pretrained": pretrained,
-        "finished_at": datetime.now(timezone.utc).isoformat(),
-        "hyperparameters": {
-            "epochs_head": epochs_head,
-            "epochs_full": epochs_full,
-            "lr_head": args.lr_head,
-            "lr_full": args.lr_full,
-            "batch_size": args.batch_size,
-            "image_size": args.image_size,
-            "train_examples": len(train_subset),
-            "val_examples": len(val_subset),
-        },
-        "class_names": class_names,
-        "best_val_acc": best_val_acc,
-        "epoch_log": epoch_log,
-    }
-    with open(args.output_dir / "history.json", "w", encoding="utf-8") as f:
-        json.dump(history, f, ensure_ascii=False, indent=2)
+    write_history("completed")
 
 
 if __name__ == "__main__":
