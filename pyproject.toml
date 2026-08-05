@@ -18,6 +18,7 @@ dependencies = [
     "scikit-learn",
     "shap",
     "scipy",
+    "joblib",
 ]
 
 [project.optional-dependencies]

@@ -1,9 +1,13 @@
-import { useState } from 'react'
-import TrainingPage from './pages/TrainingPage'
-import PredictPage from './pages/PredictPage'
-import OptimizePage from './pages/OptimizePage'
-import DatasetsPage from './pages/DatasetsPage'
+import { lazy, Suspense, useState } from 'react'
 import StatusBar from './components/StatusBar'
+
+// Разбито на отдельные чанки (lazy + code-splitting) -- recharts тянется
+// только той вкладкой, что его использует, а не в общий бандл при первой
+// загрузке страницы (см. предупреждение vite о чанке >500 КБ).
+const TrainingPage = lazy(() => import('./pages/TrainingPage'))
+const PredictPage = lazy(() => import('./pages/PredictPage'))
+const OptimizePage = lazy(() => import('./pages/OptimizePage'))
+const DatasetsPage = lazy(() => import('./pages/DatasetsPage'))
 
 const TABS = [
   { id: 'training', label: 'Обучение', Component: TrainingPage },
@@ -32,7 +36,9 @@ export default function App() {
           </button>
         ))}
       </nav>
-      <Active />
+      <Suspense fallback={<p className="muted">Загрузка...</p>}>
+        <Active />
+      </Suspense>
     </>
   )
 }
