@@ -43,9 +43,7 @@ def validate_inputs(coords, times, X, mask_observed):
         raise DataValidationError("X должен содержать числовые значения показателя")
 
     if mask_observed.shape != (M, T):
-        raise DataValidationError(
-            f"mask_observed должен иметь форму (M, T) = ({M}, {T}), получено {mask_observed.shape}"
-        )
+        raise DataValidationError(f"mask_observed должен иметь форму (M, T) = ({M}, {T}), получено {mask_observed.shape}")
     if mask_observed.dtype != np.bool_:
         raise DataValidationError("mask_observed должен быть булевой маской (dtype=bool)")
 

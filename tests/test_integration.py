@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -48,11 +49,8 @@ def test_export_rejects_mismatched_lengths():
     plots = generate_plots(n_plots=3)
     doses = np.array([1.0, 2.0])
 
-    try:
+    with pytest.raises(ValueError):
         export_task_data(plots, doses)
-        assert False, "ожидалась ValueError при несовпадении числа участков и доз"
-    except ValueError:
-        pass
 
 
 def test_export_customer_farm_task_names_are_applied():

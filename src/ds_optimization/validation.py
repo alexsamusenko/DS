@@ -44,9 +44,7 @@ def validate_plots(plots, dose_min, dose_max, price_yield, price_fert):
 def validate_budget(plots, budget, dose_min):
     total_min_area = float(np.sum(plots["area"])) * dose_min
     if budget < total_min_area:
-        raise OptimizationInputError(
-            f"Бюджет {budget} меньше стоимости минимально допустимой дозы на всех участках ({total_min_area})"
-        )
+        raise OptimizationInputError(f"Бюджет {budget} меньше стоимости минимально допустимой дозы на всех участках ({total_min_area})")
 
 
 def validate_plots_multi(plots, nutrient_names, dose_min, dose_max, price_yield, price_fert):

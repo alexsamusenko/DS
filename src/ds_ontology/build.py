@@ -35,15 +35,33 @@ def run_demo():
     pole.vyraschivaetsya.append(kultura)
 
     sensor_source = get_or_create_istochnik(onto, tip="IoT-датчик почвы", format_istochnika="MQTT/JSON", dostovernost=0.95)
-    assert_soil_reading(onto, pole, tip_pokazatelya="влажность почвы", znachenie=27.4, data_izmereniya="2026-05-14", edinitsa_izmereniya="%", istochnik=sensor_source)
+    assert_soil_reading(
+        onto,
+        pole,
+        tip_pokazatelya="влажность почвы",
+        znachenie=27.4,
+        data_izmereniya="2026-05-14",
+        edinitsa_izmereniya="%",
+        istochnik=sensor_source,
+    )
 
     lab_source = get_or_create_istochnik(onto, tip="Лабораторный анализ", format_istochnika="XLSX", dostovernost=0.99)
-    assert_soil_reading(onto, pole, tip_pokazatelya="содержание азота", znachenie=18.2, data_izmereniya="2026-04-02", edinitsa_izmereniya="мг/кг", istochnik=lab_source)
+    assert_soil_reading(
+        onto,
+        pole,
+        tip_pokazatelya="содержание азота",
+        znachenie=18.2,
+        data_izmereniya="2026-04-02",
+        edinitsa_izmereniya="мг/кг",
+        istochnik=lab_source,
+    )
 
     assert_weather_event(onto, pole, tip_sobytiya="заморозок", intensivnost=-3.5, period="2026-04-10")
 
     journal_source = get_or_create_istochnik(onto, tip="Журнал полевых работ", format_istochnika="текст", dostovernost=0.8)
-    assert_agro_priem(onto, pole, tip_operatsii="внесение азотных удобрений", doza=120.0, data_priema="2026-04-15", istochnik=journal_source)
+    assert_agro_priem(
+        onto, pole, tip_operatsii="внесение азотных удобрений", doza=120.0, data_priema="2026-04-15", istochnik=journal_source
+    )
 
     # lambda: текстовое упоминание "озимка" должно разрешиться в уже созданный
     # экземпляр Kultura через regionalnoe_nazvanie (§2.1.5), а не породить дубликат

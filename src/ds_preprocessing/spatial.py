@@ -27,8 +27,12 @@ def spatial_estimate(coords, X, mask_observed):
             continue
 
         ok = OrdinaryKriging(
-            coords[observed_idx, 0], coords[observed_idx, 1], X[observed_idx, t],
-            variogram_model="spherical", verbose=False, enable_plotting=False,
+            coords[observed_idx, 0],
+            coords[observed_idx, 1],
+            X[observed_idx, t],
+            variogram_model="spherical",
+            verbose=False,
+            enable_plotting=False,
         )
         pred, var = ok.execute("points", coords[missing_idx, 0], coords[missing_idx, 1])
         estimate[missing_idx, t] = np.asarray(pred)

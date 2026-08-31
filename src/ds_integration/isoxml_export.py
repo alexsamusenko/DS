@@ -42,8 +42,10 @@ def export_task_data(
 
     root = ET.Element(
         "ISO11783_TaskData",
-        VersionMajor="4", VersionMinor="3",
-        ManagementSoftwareManufacturer="DS", ManagementSoftwareVersion="0.1.0",
+        VersionMajor="4",
+        VersionMinor="3",
+        ManagementSoftwareManufacturer="DS",
+        ManagementSoftwareVersion="0.1.0",
         DataTransferOrigin="1",
     )
 

@@ -67,11 +67,16 @@ def test_fill_gaps_endpoint_rejects_invalid_input():
 
 def test_predict_endpoint_returns_yield_and_modality_importance():
     body = {
-        "soil_moisture_mean": 30.0, "soil_nitrogen_mean": 15.0,
-        "precip_sum": 400.0, "temp_sum": 2200.0,
-        "ndvi_peak": 0.6, "ndvi_integral": 9.0,
-        "disease_events_count": 1.0, "max_risk_stage": 1.0,
-        "fertilizer_applications_count": 3.0, "total_dose": 100.0,
+        "soil_moisture_mean": 30.0,
+        "soil_nitrogen_mean": 15.0,
+        "precip_sum": 400.0,
+        "temp_sum": 2200.0,
+        "ndvi_peak": 0.6,
+        "ndvi_integral": 9.0,
+        "disease_events_count": 1.0,
+        "max_risk_stage": 1.0,
+        "fertilizer_applications_count": 3.0,
+        "total_dose": 100.0,
     }
     resp = client.post("/prediction/predict", json=body)
     assert resp.status_code == 200
@@ -106,10 +111,7 @@ def test_optimize_endpoint_without_budget():
 
 def test_optimize_endpoint_with_budget_beats_uniform():
     body = {
-        "plots": [
-            {"plot_id": i, "baseline": 40.0, "R": 3.0 + i, "s": 60.0, "area": 1.0}
-            for i in range(10)
-        ],
+        "plots": [{"plot_id": i, "baseline": 40.0, "R": 3.0 + i, "s": 60.0, "area": 1.0} for i in range(10)],
         "price_yield": 1300.0,
         "price_fert": 50.0,
         "budget": 600.0,

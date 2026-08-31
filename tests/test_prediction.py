@@ -49,9 +49,7 @@ def test_multimodal_beats_single_modality_on_grouped_cv():
     for modality in DEFAULT_MODALITIES:
         remaining = tuple(m for m in DEFAULT_MODALITIES if m != modality)
         rmse_without = evaluate_grouped_cv(df, modalities=remaining)
-        assert rmse_full <= rmse_without + 1e-9, (
-            f"Полная модель не должна уступать модели без модальности {modality!r}"
-        )
+        assert rmse_full <= rmse_without + 1e-9, f"Полная модель не должна уступать модели без модальности {modality!r}"
 
 
 def test_grouped_cv_prevents_leakage_across_years_of_same_field():

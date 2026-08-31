@@ -11,7 +11,7 @@
 import numpy as np
 
 from ds_preprocessing.combine import fill_gaps
-from ds_preprocessing.metrics import mae, rmse
+from ds_preprocessing.metrics import rmse
 from ds_preprocessing.synthetic import generate_field, punch_holes
 
 
@@ -25,7 +25,7 @@ def run_demo(n_trials=10):
     """
     coords, times, X_true = generate_field()
 
-    rmses = {"spatial": [], "temporal": [], "combined": []}
+    rmses: dict[str, list[float]] = {"spatial": [], "temporal": [], "combined": []}
     unrestored_total, anomalies_total = 0, 0
 
     for seed in range(n_trials):

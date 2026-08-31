@@ -34,9 +34,7 @@ def run_demo():
         print(f"  {modality:<10}{value:>10.3f}")
 
     for m in DEFAULT_MODALITIES:
-        assert rmse_full <= rmse_without[m] + 1e-9, (
-            f"Мультимодальная модель не должна уступать модели без модальности {m!r} (§2.3.6)"
-        )
+        assert rmse_full <= rmse_without[m] + 1e-9, f"Мультимодальная модель не должна уступать модели без модальности {m!r} (§2.3.6)"
 
     return rmse_full, rmse_without, importance
 

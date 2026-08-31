@@ -66,9 +66,12 @@ def test_mu_integration_creates_anchored_triples():
     pole = get_or_create_pole(onto, pole_id="42")
     istochnik = get_or_create_istochnik(onto, tip="IoT-датчик почвы")
     reading = assert_soil_reading(
-        onto, pole,
-        tip_pokazatelya="влажность почвы", znachenie=30.1,
-        data_izmereniya="2026-05-01", edinitsa_izmereniya="%",
+        onto,
+        pole,
+        tip_pokazatelya="влажность почвы",
+        znachenie=30.1,
+        data_izmereniya="2026-05-01",
+        edinitsa_izmereniya="%",
         istochnik=istochnik,
     )
     assert reading in pole.harakterizuetsya

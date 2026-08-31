@@ -17,8 +17,8 @@ def modality_importance(model, X):
     shap_values = explain_predictions(model, X)
     mean_abs = np.abs(shap_values.values).mean(axis=0)
 
-    importance = {}
-    for column, value in zip(X.columns, mean_abs):
+    importance: dict[str, float] = {}
+    for column, value in zip(X.columns, mean_abs, strict=True):
         modality = modality_of(column)
         importance[modality] = importance.get(modality, 0.0) + float(value)
 

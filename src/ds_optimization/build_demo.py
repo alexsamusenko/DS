@@ -15,9 +15,7 @@ DOSE_MIN, DOSE_MAX = 0.0, 150.0  # кг/га
 
 
 def total_profit(plots, doses, price_yield, price_fert):
-    per_area_profit = profit(
-        plots["baseline"].to_numpy(), plots["R"].to_numpy(), plots["s"].to_numpy(), doses, price_yield, price_fert
-    )
+    per_area_profit = profit(plots["baseline"].to_numpy(), plots["R"].to_numpy(), plots["s"].to_numpy(), doses, price_yield, price_fert)
     return float(np.sum(per_area_profit * plots["area"].to_numpy()))
 
 
@@ -41,14 +39,12 @@ def run_demo():
     print(f"Прирост прибыли: {profit_diff - profit_uniform:.1f} ({(profit_diff / profit_uniform - 1) * 100:.1f}%)")
 
     print()
-    print("Дозы по участкам (первые 5 из {}):".format(len(plots)))
+    print(f"Дозы по участкам (первые 5 из {len(plots)}):")
     print(f"{'участок':<10}{'R (отклик)':>12}{'равномерно':>14}{'дифференц.':>14}")
     for i in range(min(5, len(plots))):
         print(f"{i:<10}{plots['R'].iloc[i]:>12.2f}{dose_uniform:>14.1f}{doses_diff[i]:>14.1f}")
 
-    assert profit_diff >= profit_uniform - 1e-6, (
-        "Дифференцированное внесение не должно уступать равномерному при том же бюджете (§2.4.5)"
-    )
+    assert profit_diff >= profit_uniform - 1e-6, "Дифференцированное внесение не должно уступать равномерному при том же бюджете (§2.4.5)"
 
     return profit_diff, profit_uniform
 

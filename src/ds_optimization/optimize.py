@@ -28,18 +28,14 @@ def optimize_unconstrained(plots, dose_min, dose_max, price_yield, price_fert):
     """Оптимум по каждому участку независимо (§2.4.3). Возвращает np.ndarray доз."""
     validate_plots(plots, dose_min, dose_max, price_yield, price_fert)
 
-    doses = np.array([
-        _dose_for_shadow_price(row.R, row.s, price_fert, price_yield, dose_min, dose_max)
-        for row in plots.itertuples()
-    ])
+    doses = np.array([_dose_for_shadow_price(row.R, row.s, price_fert, price_yield, dose_min, dose_max) for row in plots.itertuples()])
     return doses
 
 
 def _total_dose_at_lambda(plots, lam, price_yield, price_fert, dose_min, dose_max):
-    doses = np.array([
-        _dose_for_shadow_price(row.R, row.s, price_fert + lam * row.area, price_yield, dose_min, dose_max)
-        for row in plots.itertuples()
-    ])
+    doses = np.array(
+        [_dose_for_shadow_price(row.R, row.s, price_fert + lam * row.area, price_yield, dose_min, dose_max) for row in plots.itertuples()]
+    )
     return doses, float(np.sum(doses * plots["area"].to_numpy()))
 
 
@@ -51,9 +47,7 @@ def optimize_with_budget(plots, budget, dose_min, dose_max, price_yield, price_f
     validate_plots(plots, dose_min, dose_max, price_yield, price_fert)
     validate_budget(plots, budget, dose_min)
 
-    doses_unconstrained, total_unconstrained = _total_dose_at_lambda(
-        plots, 0.0, price_yield, price_fert, dose_min, dose_max
-    )
+    doses_unconstrained, total_unconstrained = _total_dose_at_lambda(plots, 0.0, price_yield, price_fert, dose_min, dose_max)
     if total_unconstrained <= budget:
         return doses_unconstrained  # ограничение не связывающее (lambda = 0)
 

@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from service import datasets_catalog  # noqa: E402
 from service.app import app  # noqa: E402
 
 client = TestClient(app)
@@ -27,15 +28,32 @@ def test_training_history_has_both_runs_keys():
         assert run is None or "task" in run
 
 
-def test_datasets_lists_plantdoc_card_with_disk_presence():
+def test_datasets_lists_plantdoc_card_metadata():
+    # Карточка (docs/dataset_cards/plantdoc.md) читается независимо от того,
+    # загружен ли реальный датасет на диск в этом окружении -- в отличие от
+    # предыдущей версии теста, ничего не предполагает про содержимое data/
+    # (в чистом чекауте/CI data/plantdoc не существует, см. .gitignore).
     resp = client.get("/datasets")
     assert resp.status_code == 200
     entries = {d["slug"]: d for d in resp.json()}
     assert "plantdoc" in entries
     assert "CC BY 4.0" in entries["plantdoc"]["license_summary"]
-    # data/plantdoc реально загружен в этой среде разработки (docs/dataset_cards/plantdoc.md)
+
+
+def test_datasets_reports_on_disk_presence_when_data_dir_has_it(monkeypatch, tmp_path):
+    # on_disk/file_count -- поведение, привязанное к DATA_DIR, а не к
+    # конкретно plantdoc; проверяем на изолированном временном каталоге,
+    # чтобы тест не зависел от того, что реально загружено в data/.
+    fake_data_dir = tmp_path / "data"
+    (fake_data_dir / "plantdoc" / "classA").mkdir(parents=True)
+    (fake_data_dir / "plantdoc" / "classA" / "img1.txt").write_text("x")
+    monkeypatch.setattr(datasets_catalog, "DATA_DIR", fake_data_dir)
+
+    resp = client.get("/datasets")
+    assert resp.status_code == 200
+    entries = {d["slug"]: d for d in resp.json()}
     assert entries["plantdoc"]["on_disk"] is True
-    assert entries["plantdoc"]["file_count"] > 0
+    assert entries["plantdoc"]["file_count"] == 1
 
 
 def _make_zip_bytes(files: dict) -> bytes:

@@ -26,7 +26,7 @@ def test_stream_emits_initial_snapshot_immediately():
         try:
             first = await asyncio.wait_for(gen.__anext__(), timeout=1)
             assert first.startswith("data: ")
-            payload = json.loads(first[len("data: "):])
+            payload = json.loads(first[len("data: ") :])
             assert set(payload.keys()) == {"ner", "leaf_classifier"}
         finally:
             await gen.aclose()
@@ -42,7 +42,7 @@ def test_stream_stays_silent_when_nothing_changes():
             try:
                 await asyncio.wait_for(gen.__anext__(), timeout=0.3)
                 raise AssertionError("получено новое событие без изменений на диске")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass  # ожидаемо -- ничего не изменилось, событие не отправлено
         finally:
             await gen.aclose()
@@ -63,7 +63,7 @@ def test_stream_emits_new_event_on_file_change(tmp_path, monkeypatch):
             run_path.write_text(json.dumps({"status": "completed", "epoch_log": [1]}), encoding="utf-8")
 
             second = await asyncio.wait_for(gen.__anext__(), timeout=1)
-            payload = json.loads(second[len("data: "):])
+            payload = json.loads(second[len("data: ") :])
             assert payload["demo"]["status"] == "completed"
         finally:
             await gen.aclose()
