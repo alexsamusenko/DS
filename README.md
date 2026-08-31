@@ -44,7 +44,9 @@ src/
 training/  -- скрипты дообучения (NER, классификатор поражений), см. docs/chapter2/model_training.md
 service/   -- единый FastAPI-сервис поверх L3-L5, L7-экспорт, каталог датасетов + статистика обучения
 frontend/  -- React+TS SPA поверх service/ (обучение / тест на точке / внесение удобрений + экспорт / датасеты), см. frontend/README.md
-tests/     -- test_schema.py, test_preprocessing.py, test_prediction.py, test_optimization.py, test_integration.py, test_service.py, test_frontend_api.py
+tests/     -- test_schema.py, test_preprocessing.py, test_prediction.py, test_optimization.py, test_optimization_multi.py,
+              test_integration.py, test_service.py, test_frontend_api.py, test_auth.py, test_model_persistence.py,
+              test_training_stream.py, test_production_startup.py (99 тестов, покрытие -- см. `pytest --cov`)
 ```
 
 Фото и голосовые записи не образуют отдельных модальностей: фото проходит детекцию признаков поражения (`training/finetune_leaf_classifier.py`) и становится экземпляром `ВредительБолезнь` (модальность `img`), голос распознаётся речь-в-текст (ASR) и обрабатывается тем же NER-конвейером, что и письменный текст (модальность `text`) — детали в `docs/chapter2/model_training.md`.
@@ -89,7 +91,7 @@ curl -X POST http://localhost:8000/integration/export-isoxml \
   -o TASKDATA.xml
 ```
 
-**Доступ.** По умолчанию API открыт (как и раньше) — для локального прототипа этого достаточно. Если сервис реально открывается внешней системе (не localhost), задайте `DS_API_KEY` в окружении перед запуском — все маршруты, кроме `/health`, потребуют заголовок `X-API-Key` с этим значением (`service/auth.py`, §2.6.4). Без переменной поведение не меняется. Для `docker compose`: `DS_API_KEY=<значение> docker compose up app`. Если фронт должен продолжать работать при включённом ключе, соберите его с тем же значением в `VITE_API_KEY` (`frontend/.env` или переменная окружения при `npm run build`).
+**Доступ.** По умолчанию (`DS_ENV=dev` или не задан) API открыт — для локального прототипа этого достаточно. Если сервис реально открывается внешней системе (не localhost), задайте `DS_API_KEY` в окружении перед запуском — все маршруты, кроме `/health` и `/ready`, потребуют заголовок `X-API-Key` с этим значением (`service/auth.py`, §2.6.4). Без переменной поведение не меняется. Для `docker compose`: `DS_API_KEY=<значение> docker compose up app`. Если фронт должен продолжать работать при включённом ключе, соберите его с тем же значением в `VITE_API_KEY` (`frontend/.env` или переменная окружения при `npm run build`). В `DS_ENV=production` наличие `DS_API_KEY` уже не опционально — см. «Развёртывание (production)» ниже.
 
 Геометрия участков в экспорте — синтетическая (в системе нет реальных границ полей хозяйства, см. `docs/governance/licenses.md`); код показателя DDI для дозы внесения требует сверки с официальным реестром AEF ISOBUS перед использованием с реальной техникой — оба ограничения задокументированы явно, не молча.
 
@@ -147,6 +149,34 @@ docker compose run --rm train python3 training/finetune_leaf_classifier.py --epo
 Оба скрипта по умолчанию скачивают предобученные веса (`DeepPavlov/rubert-base-cased` для NER, `EfficientNet_B0_Weights.IMAGENET1K_V1` для классификатора — нужен доступ в сеть при первом запуске; источники и лицензии — `docs/governance/licenses.md`, раздел «Предобученные веса моделей»). Другие пути к данным — через `--train`/`--eval` (NER) или `--data-dir`/`--val-subdir` (классификатор). Флаги `--no-pretrained` (классификатор) / `--smoke-test` (оба скрипта) — офлайн-резерв на случай, если download.pytorch.org/huggingface.co недоступны из текущей сети (как в песочнице разработки этого проекта).
 
 **GPU**: если на хосте установлен `nvidia-container-toolkit`, раскомментируйте блок `deploy.resources.reservations` для сервиса `train` в `docker-compose.yml` — официальные wheel'ы `torch` с PyPI уже содержат поддержку CUDA, отдельный образ на базе `nvidia/cuda` не требуется.
+
+### Развёртывание (production)
+
+По итогам аудита перед развёртыванием (2026-08) `app` в `DS_ENV=production` **отказывается стартовать** в конфигурации, которая раньше могла тихо доехать до боевого трафика — небезопасной (открытый API) или вводящей в заблуждение (прогнозы синтетической demo-моделью вместо обученной на реальных данных). Ошибка при старте видна сразу в логах контейнера; в dev (по умолчанию) обе ситуации по-прежнему допустимы.
+
+Чек-лист перед `docker compose up app` (или любым другим способом запуска) в проде:
+
+1. **Права на данные.** Контейнер работает от непривилегированного пользователя (uid 1000), не от root:
+   ```bash
+   mkdir -p build data && chown -R 1000:1000 build data   # или chmod 777, если chown недоступен (rootless Podman)
+   ```
+2. **Обученная модель на диске.** `docker-compose.yml` монтирует `./build:/app/build` для `app` — положите туда результат `docker compose run --rm train ...` (или скопируйте `build/models/l4_gradient_boosting.joblib` вручную) **до** первого запуска в production. Без этого `app` при `DS_ENV=production` не поднимется (при `DS_ENV=dev`/не задан — поднимется, но будет обучать и обслуживать demo-модель на синтетике, что подходит только для прототипа).
+3. **Переменные окружения** — см. `.env.example`. Минимально для прода:
+   ```bash
+   export DS_ENV=production
+   export DS_API_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+   ```
+4. **Запуск:**
+   ```bash
+   docker compose up -d app
+   docker compose logs -f app       # проверить, что стартовые проверки пройдены (см. лог "production-конфигурации пройдены")
+   curl -H "X-API-Key: $DS_API_KEY" http://localhost:8000/ready
+   ```
+   `/health` — liveness (процесс жив), `/ready` — readiness (модель L4 реально доступна; возвращает 503, если нет). Оба без ключа. `HEALTHCHECK` уже встроен в образ (`Dockerfile`) и продублирован в `docker-compose.yml`.
+
+**CI** (`.github/workflows/ci.yml`) на каждый push/PR: `ruff check`/`ruff format --check`, `mypy src service`, `pip-audit` (известные CVE в зафиксированных версиях, non-blocking пока список зависимостей не устоялся), `pytest` с порогом покрытия 80 % (`pyproject.toml`), сборка и тесты фронта (`oxlint`, `vitest`, `tsc -b && vite build`), и наконец сборка `Dockerfile` + прогон полного набора тестов внутри него — тот же `docker compose run --rm test`, но теперь автоматически, а не только вручную.
+
+**Что сознательно не сделано в этом проходе** (см. итоговый список рекомендаций аудита): полноценные метрики (Prometheus/OpenTelemetry) — сейчас только структурные логи (`service/logging_config.py`) и request-timing в них; горизонтальное масштабирование (несколько воркеров uvicorn/несколько реплик) — сейчас один процесс, лимиты CPU/RAM заданы в `docker-compose.yml`, но автоскейлинга нет.
 
 ### Дообучение моделей (без Docker)
 
