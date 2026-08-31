@@ -9,37 +9,53 @@ description = "Прототип комплексного анализа слаб
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
+# Версии зафиксированы для воспроизводимости сборки (аудит перед развёртыванием,
+# 2026-08). Обновлять осознанно: `pip install --upgrade <pkg>` -> прогнать
+# tests/ -> перезафиксировать здесь. `pip-audit` (dev-группа) проверяет
+# зафиксированные версии на известные CVE, см. .github/workflows/ci.yml.
 dependencies = [
-    "owlready2",
-    "rdflib",
-    "numpy",
-    "pykrige",
-    "pandas",
-    "scikit-learn",
-    "shap",
-    "scipy",
-    "joblib",
+    "owlready2==0.51",
+    "rdflib==7.6.0",
+    "numpy==2.4.6",
+    "pykrige==1.7.3",
+    "pandas==3.0.5",
+    "scikit-learn==1.9.0",
+    "shap==0.51.0",
+    "scipy==1.17.1",
+    "joblib==1.6.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "httpx"]
+dev = [
+    "pytest==9.1.1",
+    "httpx==0.28.1",
+    "pytest-cov==7.1.0",
+    "ruff==0.16.5",
+    "mypy==2.3.1",
+    "pip-audit==2.10.1",
+]
 # Тяжёлые зависимости для дообучения моделей (docs/chapter2/model_training.md) --
 # отдельная группа, чтобы базовая установка (`pip install -e .`) оставалась лёгкой.
 # seqeval сюда не входит: не собирается из-за конфликта сборочных зависимостей
 # (setuptools_scm), поэтому entity-level F1 реализован вручную в training/finetune_ner.py.
+# Версии для этой группы намеренно не зафиксированы день-в-день (torch/transformers --
+# гигабайты, менять их в песочнице аудита нецелесообразно), но ограничены
+# минимальными мажорными версиями, чтобы не подтянуть заведомо несовместимый
+# древний релиз; при следующем плановом обновлении зафиксировать точно так же,
+# как основную группу выше.
 training = [
-    "torch",
-    "torchvision",
-    "transformers",
-    "datasets",
-    "accelerate",
-    "pillow",
+    "torch>=2.4",
+    "torchvision>=0.19",
+    "transformers>=4.44",
+    "datasets>=2.20",
+    "accelerate>=0.33",
+    "pillow>=10.4",
 ]
 # Единый API-сервис (service/) поверх L3-L5, см. docs/project_overview.md
 api = [
-    "fastapi",
-    "uvicorn[standard]",
-    "python-multipart",
+    "fastapi==0.141.1",
+    "uvicorn[standard]==0.52.4",
+    "python-multipart==0.0.32",
 ]
 
 [tool.setuptools.packages.find]
@@ -47,3 +63,47 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = [".", "src"]
+addopts = "--cov=src --cov=service --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+branch = true
+omit = [
+    "src/*/build_demo.py",  # демо-скрипты для ручного запуска, не единица тестирования
+    "src/ds_ontology/build.py",
+]
+
+[tool.ruff]
+line-length = 140
+target-version = "py311"
+exclude = ["build", "frontend"]
+
+[tool.ruff.lint]
+# Стартовый, сознательно не самый строгий набор: включаем правила, которые уже
+# проходят на текущем коде (или почти проходят), чтобы CI-гейт был полезен
+# с первого дня, а не выключен из-за сотен несвязанных предупреждений.
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = [
+    "E501",  # длину строк уже ограничивает line-length; отдельные длинные строки с кириллицей не блокируем
+    "B008",  # File(...)/Form(...)/Query(...) как значение по умолчанию -- идиоматичный FastAPI DI, не баг
+]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+explicit_package_bases = true
+ignore_missing_imports = true
+# Мягкий старт: включаем базовые проверки без строгого режима (--strict),
+# чтобы не требовать немедленной аннотации всего кода. Ужесточать постепенно.
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+exclude = ["training/", "frontend/", "build/"]
+
+[[tool.mypy.overrides]]
+# owlready2 создаёт классы онтологии (Thing/ObjectProperty/DataProperty и
+# производные) динамически через нестандартные метаклассы -- mypy не умеет
+# статически подтвердить их как валидные базовые классы (ложные "Invalid
+# base class" на каждом классе схемы). Это ограничение самой owlready2, а
+# не баг в src/ds_ontology/schema.py.
+module = "ds_ontology.schema"
+disable_error_code = ["misc"]
