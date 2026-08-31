@@ -65,10 +65,18 @@ def list_datasets() -> list[dict]:
     # каждый добавляемый актив", docs/governance/best_practices.md).
     for name, path in on_disk.items():
         if name not in cards:
-            entries.append({
-                "slug": name, "title": name, "license_summary": "⚠️ карточка датасета не найдена",
-                "source": None, "composition": None, "limitations": None, "usage_in_project": None,
-                "on_disk": True, **_dir_stats(path),
-            })
+            entries.append(
+                {
+                    "slug": name,
+                    "title": name,
+                    "license_summary": "⚠️ карточка датасета не найдена",
+                    "source": None,
+                    "composition": None,
+                    "limitations": None,
+                    "usage_in_project": None,
+                    "on_disk": True,
+                    **_dir_stats(path),
+                }
+            )
 
     return entries

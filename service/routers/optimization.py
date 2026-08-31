@@ -15,8 +15,12 @@ router = APIRouter(prefix="/optimization", tags=["L5 -- оптимизация �
 
 def _total_profit(plots_df: pd.DataFrame, doses: np.ndarray, price_yield: float, price_fert: float) -> float:
     per_area = profit(
-        plots_df["baseline"].to_numpy(), plots_df["R"].to_numpy(), plots_df["s"].to_numpy(),
-        doses, price_yield, price_fert,
+        plots_df["baseline"].to_numpy(),
+        plots_df["R"].to_numpy(),
+        plots_df["s"].to_numpy(),
+        doses,
+        price_yield,
+        price_fert,
     )
     return float(np.sum(per_area * plots_df["area"].to_numpy()))
 

@@ -30,7 +30,10 @@ def export_isoxml(req: IsoxmlExportRequest) -> Response:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     xml_text = export_task_data(
-        plots_df, doses,
-        customer_name=req.customer_name, farm_name=req.farm_name, task_designator=req.task_designator,
+        plots_df,
+        doses,
+        customer_name=req.customer_name,
+        farm_name=req.farm_name,
+        task_designator=req.task_designator,
     )
     return Response(content=xml_text, media_type="application/xml", headers={"Content-Disposition": 'attachment; filename="TASKDATA.xml"'})

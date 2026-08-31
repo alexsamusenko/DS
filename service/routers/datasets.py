@@ -10,7 +10,6 @@ docs/governance/best_practices.md, обязательная проверка л�
 
 import re
 import zipfile
-from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
@@ -19,6 +18,13 @@ from ..datasets_catalog import DATA_DIR, list_datasets
 router = APIRouter(prefix="/datasets", tags=["Каталог датасетов"])
 
 MAX_UPLOAD_BYTES = 2 * 1024**3  # 2 ГБ -- достаточно для PlantDoc-подобных датасетов, отсекает случайный мусор
+# Проверялся только сжатый размер архива -- маленький, сильно сжимаемый файл
+# (например, несколько сотен КБ нулей) мог распаковаться в десятки ГБ и
+# забить диск (decompression bomb, см. аудит перед развёртыванием). Лимиты
+# ниже -- на РАСПАКОВАННЫЙ суммарный размер и число файлов в архиве,
+# проверяются до extractall.
+MAX_UNCOMPRESSED_BYTES = 4 * 1024**3  # 4 ГБ -- вдвое больше MAX_UPLOAD_BYTES, с запасом на типичное для фото/текста сжатие
+MAX_ARCHIVE_ENTRIES = 200_000
 NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
@@ -48,8 +54,20 @@ async def upload_dataset(name: str = Form(...), archive: UploadFile = File(...))
 
     try:
         with zipfile.ZipFile(tmp_zip) as zf:
+            infolist = zf.infolist()
+            if len(infolist) > MAX_ARCHIVE_ENTRIES:
+                raise HTTPException(413, f"Архив содержит слишком много файлов (>{MAX_ARCHIVE_ENTRIES})")
+
+            total_uncompressed = sum(member.file_size for member in infolist)
+            if total_uncompressed > MAX_UNCOMPRESSED_BYTES:
+                raise HTTPException(
+                    413,
+                    f"Суммарный распакованный размер архива ({total_uncompressed / 1024**3:.1f} ГБ) "
+                    f"превышает лимит ({MAX_UNCOMPRESSED_BYTES // 1024**3} ГБ)",
+                )
+
             resolved_target = target_dir.resolve()
-            for member in zf.infolist():
+            for member in infolist:
                 member_path = (target_dir / member.filename).resolve()
                 if resolved_target not in member_path.parents and member_path != resolved_target:
                     raise HTTPException(400, f"Архив содержит путь за пределами целевой папки: {member.filename}")

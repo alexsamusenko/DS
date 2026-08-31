@@ -2,8 +2,8 @@
 
 from pydantic import BaseModel, Field
 
-
 # ---- L3: предобработка (docs/chapter2/preprocessing_model.md, §2.2) ----
+
 
 class FillGapsRequest(BaseModel):
     coords: list[list[float]] = Field(..., description="Координаты точек s_1..s_M, форма (M, 2)")
@@ -20,6 +20,7 @@ class FillGapsResponse(BaseModel):
 
 
 # ---- L4: прогноз (docs/chapter2/prediction_model.md, §2.3) ----
+
 
 class PredictionFeatures(BaseModel):
     """Один вектор x_{m,y} -- признаки по всем четырём модальностям (§2.3.2)."""
@@ -49,6 +50,7 @@ class TrainingSummary(BaseModel):
 
 # ---- L5: оптимизация внесения (docs/chapter2/optimization_model.md, §2.4) ----
 
+
 class Plot(BaseModel):
     plot_id: int
     baseline: float = Field(..., description="Базовый потенциал урожайности без доп. внесения, ц/га")
@@ -64,7 +66,8 @@ class OptimizeRequest(BaseModel):
     dose_min: float = Field(0.0, ge=0)
     dose_max: float = Field(150.0, description="Верхняя агрономическая граница дозы, кг/га")
     budget: float | None = Field(
-        None, description="Суммарный бюджет удобрений, кг. Если не задан -- оптимум без ограничения (§2.4.3), иначе -- метод Лагранжа (§2.4.4)"
+        None,
+        description="Суммарный бюджет удобрений, кг. Если не задан -- оптимум без ограничения (§2.4.3), иначе -- метод Лагранжа (§2.4.4)",
     )
 
 
@@ -76,6 +79,7 @@ class OptimizeResponse(BaseModel):
 
 
 # ---- L7: интеграция с внешними ИС (docs/chapter2/integration_model.md, §2.6) ----
+
 
 class IsoxmlExportRequest(OptimizeRequest):
     customer_name: str = Field("Демо-хозяйство", description="Значение CTR/B в TASKDATA.XML")

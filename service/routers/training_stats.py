@@ -12,10 +12,13 @@ GET /training/history/stream: SSE-поток, который опрашивае�
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
+
+logger = logging.getLogger("ds.training_stats")
 
 router = APIRouter(prefix="/training", tags=["Статистика обучения"])
 
@@ -30,8 +33,16 @@ POLL_INTERVAL_SECONDS = 1.0
 def _load_run(path: Path) -> dict | None:
     if not path.exists():
         return None
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        # training/finetune_*.py дописывает history.json после каждой эпохи --
+        # опрос (в т.ч. SSE-стрим ниже) может застать файл в момент записи
+        # (усечённый JSON). Это не ошибка клиента и не повод падать 500-кой:
+        # следующий опрос через POLL_INTERVAL_SECONDS увидит уже дописанный файл.
+        logger.debug("history.json временно нечитаем (вероятно, идёт запись): %s", path, exc_info=True)
+        return None
 
 
 def _snapshot() -> dict:
