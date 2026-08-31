@@ -6,6 +6,18 @@
 #
 # Запуск: docker compose run --rm <сервис> [доп. аргументы команды]
 # (кроме app -- тот демон, для него docker compose up app)
+#
+# Перед первым запуском (все контейнеры работают от непривилегированного
+# appuser, uid 1000 -- см. Dockerfile/Dockerfile.training):
+#   mkdir -p build data && chown -R 1000:1000 build data
+# (или `chmod 777 build data`, если chown недоступен -- например, rootless
+# Podman; для локального прототипа этого достаточно, для боевого окружения
+# предпочтителен chown).
+#
+# Переменные окружения сервиса -- см. .env.example и service/config.py.
+# В production (DS_ENV=production) обязателен DS_API_KEY и наличие уже
+# обученной модели L4 в ./build -- иначе app откажется стартовать (см.
+# README, раздел «Развёртывание», и service/app.py: lifespan-проверка).
 
 services:
   app:
@@ -14,7 +26,32 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    volumes:
+      # Без этого тома сервис при отсутствии кэша на диске молча обучает и
+      # обслуживает синтетическую demo-модель заново при каждом рестарте
+      # (см. service/routers/prediction.py) -- в production критично держать
+      # том смонтированным и заранее наполненным реальной моделью.
+      - ./build:/app/build
+    environment:
+      DS_ENV: ${DS_ENV:-dev}
+      DS_API_KEY: ${DS_API_KEY:-}
+      DS_CORS_ORIGINS: ${DS_CORS_ORIGINS:-}
+      DS_LOG_LEVEL: ${DS_LOG_LEVEL:-INFO}
     command: ["python3", "-m", "uvicorn", "service.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2g
+        reservations:
+          cpus: "0.5"
+          memory: 512m
 
   test:
     build:

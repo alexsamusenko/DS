@@ -26,4 +26,17 @@ COPY --from=frontend-build /frontend/dist frontend/dist
 
 RUN pip install --no-cache-dir -e ".[dev,api]"
 
+# Непривилегированный пользователь -- контейнер (в т.ч. JRE-ризонер HermiT,
+# запускаемый owlready2) не должен работать от root без необходимости.
+RUN useradd --create-home --uid 1000 appuser \
+    && mkdir -p /app/build /app/data \
+    && chown -R appuser:appuser /app
+USER appuser
+
+# Проверяет именно готовность обслуживать запросы (см. service/app.py, /health
+# и /ready), а не только "процесс жив" -- используется docker-compose.yml
+# и любым внешним оркестратором, который умеет читать статус контейнера.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python3 -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=3).status == 200 else 1)"
+
 CMD ["python3", "-m", "ds_ontology.build"]

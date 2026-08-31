@@ -15,6 +15,15 @@ COPY docs/ docs/
 
 RUN pip install --no-cache-dir -e ".[dev,training]"
 
+# Непривилегированный пользователь -- см. Dockerfile (основной образ) для
+# того же обоснования. build/ и data/ должны остаться доступны на запись
+# смонтированным томам (docker-compose.yml), поэтому владелец меняется
+# заранее, а не после монтирования.
+RUN useradd --create-home --uid 1000 appuser \
+    && mkdir -p /app/build /app/data \
+    && chown -R appuser:appuser /app
+USER appuser
+
 # GPU: запускайте с `docker compose run --gpus all train ...` (требует
 # установленного nvidia-container-toolkit на хосте с NVIDIA GPU). Отдельный
 # образ на базе nvidia/cuda не нужен -- официальные wheel'ы torch с PyPI уже
