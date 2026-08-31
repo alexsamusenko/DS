@@ -1,9 +1,26 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-build/
+.coverage
 *.egg-info/
 .venv/
 data/
 frontend/node_modules/
 frontend/dist/
+
+# Промежуточные resume-чекпоинты HF Trainer (training/finetune_ner.py,
+# TrainingArguments.save_strategy="epoch") -- дублируют optimizer/scheduler
+# состояние ради возобновления прерванного обучения; итоговые веса модели
+# уже сохранены отдельно в build/ner_model/ (trainer.save_model()) и
+# отслеживаются в git, а сами чекпоинты -- нет, чтобы не раздувать репозиторий
+# состоянием оптимизатора, не нужным после завершения обучения.
+build/*/checkpoint-*/
+
+# L4 обучается лениво demo-моделью на синтетике при первом запросе к
+# /prediction/predict (service/routers/prediction.py) и кешируется сюда же --
+# НЕ коммитить: если этот файл окажется в git, стартовая проверка
+# production-конфигурации (service/app.py, lifespan) увидит "модель на диске
+# есть" и пропустит именно ту ситуацию, которую она должна отлавливать
+# (см. §2.11 диссертации, аудит перед развёртыванием). Реальная модель,
+# обученная на данных хозяйства, -- отдельный артефакт главы 4, не этот файл.
+build/models/

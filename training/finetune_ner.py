@@ -550,6 +550,14 @@ def main():
         eval_dataset = HFNERDataset(load_jsonl(args.eval), tokenizer, args.max_length)
         data_collator = None
 
+    # warmup_steps, а не warmup_ratio: последний убран из TrainingArguments в
+    # transformers>=5 (см. аудит перед развёртыванием -- зависимости ML-стека
+    # намеренно не запинены день-в-день, pyproject.toml, группа training), а
+    # warmup_steps поддерживается во всех версиях. 10% шагов на прогрев --
+    # тот же эффект, что и прежний warmup_ratio=0.1, вычисленный явно.
+    steps_per_epoch = max(1, -(-len(train_dataset) // args.batch_size))  # ceil-деление без импорта math
+    warmup_steps = int(0.1 * steps_per_epoch * args.epochs)
+
     training_args = TrainingArguments(
         output_dir=str(args.output_dir),
         learning_rate=args.lr,
@@ -557,7 +565,7 @@ def main():
         per_device_eval_batch_size=args.batch_size,
         num_train_epochs=args.epochs,
         weight_decay=0.01,
-        warmup_ratio=0.1,
+        warmup_steps=warmup_steps,
         eval_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
