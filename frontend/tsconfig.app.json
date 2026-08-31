@@ -16,6 +16,11 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* Type safety -- раньше не было включено вовсе (strictNullChecks,
+       noImplicitAny и т.п. молчаливо выключены), несмотря на то, что код уже
+       написан с типами -- см. аудит перед развёртыванием. */
+    "strict": true,
+
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,
