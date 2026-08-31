@@ -42,7 +42,7 @@
 import argparse
 import json
 import random
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -60,10 +60,14 @@ from transformers import (
 
 LABELS = [
     "O",
-    "B-KULTURA", "I-KULTURA",
-    "B-AGROPRIEM", "I-AGROPRIEM",
-    "B-POKAZATEL", "I-POKAZATEL",
-    "B-VREDITEL", "I-VREDITEL",
+    "B-KULTURA",
+    "I-KULTURA",
+    "B-AGROPRIEM",
+    "I-AGROPRIEM",
+    "B-POKAZATEL",
+    "I-POKAZATEL",
+    "B-VREDITEL",
+    "I-VREDITEL",
 ]
 LABEL2ID = {label: i for i, label in enumerate(LABELS)}
 ID2LABEL = {i: label for i, label in enumerate(LABELS)}
@@ -80,6 +84,7 @@ def set_seed(seed):
 # ---------------------------------------------------------------------------
 # Данные
 # ---------------------------------------------------------------------------
+
 
 def load_jsonl(path):
     examples = []
@@ -113,25 +118,56 @@ def build_smoke_test_corpus():
 
 VOCAB = {
     "KULTURA": [
-        "Пшеница озимая", "Пшеница яровая", "Ячмень яровой", "Ячмень озимый",
-        "Кукуруза", "Подсолнечник", "Соя", "Рапс яровой", "Рожь озимая",
-        "Овёс", "Гречиха", "Картофель", "Свёкла сахарная", "Горох",
+        "Пшеница озимая",
+        "Пшеница яровая",
+        "Ячмень яровой",
+        "Ячмень озимый",
+        "Кукуруза",
+        "Подсолнечник",
+        "Соя",
+        "Рапс яровой",
+        "Рожь озимая",
+        "Овёс",
+        "Гречиха",
+        "Картофель",
+        "Свёкла сахарная",
+        "Горох",
     ],
     "AGROPRIEM": [
-        "внесение азотных удобрений", "внесение калийных удобрений",
-        "внесение фосфорных удобрений", "опрыскивание фунгицидом",
-        "опрыскивание инсектицидом", "обработку гербицидом", "боронование",
-        "вспашку", "весенний полив", "довсходовое боронование",
-        "подкормку азотом", "протравливание семян",
+        "внесение азотных удобрений",
+        "внесение калийных удобрений",
+        "внесение фосфорных удобрений",
+        "опрыскивание фунгицидом",
+        "опрыскивание инсектицидом",
+        "обработку гербицидом",
+        "боронование",
+        "вспашку",
+        "весенний полив",
+        "довсходовое боронование",
+        "подкормку азотом",
+        "протравливание семян",
     ],
     "POKAZATEL": [
-        "Влажность почвы", "Содержание азота", "Содержание фосфора",
-        "Содержание калия", "Кислотность почвы", "Температура почвы",
-        "Электропроводность почвы", "Сумма эффективных температур",
+        "Влажность почвы",
+        "Содержание азота",
+        "Содержание фосфора",
+        "Содержание калия",
+        "Кислотность почвы",
+        "Температура почвы",
+        "Электропроводность почвы",
+        "Сумма эффективных температур",
     ],
     "VREDITEL": [
-        "тля", "колорадский жук", "мучнистая роса", "ржавчина", "фузариоз",
-        "проволочник", "саранча", "слизни", "септориоз", "корневая гниль",
+        "тля",
+        "колорадский жук",
+        "мучнистая роса",
+        "ржавчина",
+        "фузариоз",
+        "проволочник",
+        "саранча",
+        "слизни",
+        "септориоз",
+        "корневая гниль",
     ],
 }
 
@@ -171,7 +207,7 @@ def _fill_template(template, rng):
         # части шаблона -- это либо литеральные слова (возможно, со знаком
         # препинания на конце), либо плейсхолдеры вида {KULTURA}.
         placeholder = part.strip(".,:")
-        trailing_punct = part[len(placeholder):]
+        trailing_punct = part[len(placeholder) :]
 
         if placeholder.startswith("{") and placeholder.endswith("}"):
             entity_type = placeholder[1:-1]
@@ -228,6 +264,7 @@ def _train_eval_split(examples, eval_fraction=0.25, seed=42):
 # ---------------------------------------------------------------------------
 # Офлайн-токенизатор для smoke-теста (без обращения к huggingface.co)
 # ---------------------------------------------------------------------------
+
 
 class ToyWordTokenizer:
     """Минимальный пословный токенизатор на словаре, построенном по корпусу.
@@ -343,6 +380,7 @@ class HFNERDataset(Dataset):
 # не устанавливается в текущем окружении из-за конфликта сборочных зависимостей)
 # ---------------------------------------------------------------------------
 
+
 def _bio_to_spans(tags):
     """['O','B-KULTURA','I-KULTURA','O'] -> {(1,3,'KULTURA')} (полуинтервал индексов)."""
     spans = set()
@@ -366,13 +404,13 @@ def compute_entity_f1(eval_pred):
     predictions = np.argmax(predictions, axis=-1)
 
     tp = fp = fn = 0
-    for pred_row, label_row in zip(predictions, label_ids):
+    for pred_row, label_row in zip(predictions, label_ids, strict=True):
         pred_tags, true_tags = [], []
-        for p, l in zip(pred_row, label_row):
-            if l == -100:
+        for p, label in zip(pred_row, label_row, strict=True):
+            if label == -100:
                 continue
             pred_tags.append(ID2LABEL[int(p)])
-            true_tags.append(ID2LABEL[int(l)])
+            true_tags.append(ID2LABEL[int(label)])
 
         pred_spans = _bio_to_spans(pred_tags)
         true_spans = _bio_to_spans(true_tags)
@@ -391,12 +429,32 @@ def compute_entity_f1(eval_pred):
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--train", type=Path, default=Path("data/ner_train.jsonl"), help="Путь к обучающему JSONL (§docstring). По умолчанию data/ner_train.jsonl. Игнорируется при --smoke-test")
-    parser.add_argument("--eval", type=Path, default=Path("data/ner_eval.jsonl"), help="Путь к валидационному JSONL. По умолчанию data/ner_eval.jsonl. Игнорируется при --smoke-test")
-    parser.add_argument("--smoke-test", action="store_true", help="Офлайн-проверка на программно сгенерированном синтетическом корпусе (без сети и внешних данных)")
-    parser.add_argument("--smoke-corpus-size", type=int, default=500, help="Размер синтетического корпуса для --smoke-test (§docstring, generate_synthetic_corpus)")
+    parser.add_argument(
+        "--train",
+        type=Path,
+        default=Path("data/ner_train.jsonl"),
+        help="Путь к обучающему JSONL (§docstring). По умолчанию data/ner_train.jsonl. Игнорируется при --smoke-test",
+    )
+    parser.add_argument(
+        "--eval",
+        type=Path,
+        default=Path("data/ner_eval.jsonl"),
+        help="Путь к валидационному JSONL. По умолчанию data/ner_eval.jsonl. Игнорируется при --smoke-test",
+    )
+    parser.add_argument(
+        "--smoke-test",
+        action="store_true",
+        help="Офлайн-проверка на программно сгенерированном синтетическом корпусе (без сети и внешних данных)",
+    )
+    parser.add_argument(
+        "--smoke-corpus-size",
+        type=int,
+        default=500,
+        help="Размер синтетического корпуса для --smoke-test (§docstring, generate_synthetic_corpus)",
+    )
     parser.add_argument("--model-name", default=DEFAULT_MODEL_NAME, help=f"Базовая модель HF Hub (по умолчанию {DEFAULT_MODEL_NAME})")
     parser.add_argument("--output-dir", type=Path, default=Path("build/ner_model"))
     parser.add_argument("--epochs", type=int, default=15, help="15 по умолчанию -- малый корпус требует больше эпох (§2.5.4)")
@@ -404,6 +462,14 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=2e-5, help="Стандартный LR для fine-tuning BERT (Devlin et al., 2018)")
     parser.add_argument("--max-length", type=int, default=128)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--resume-from-checkpoint",
+        type=Path,
+        default=None,
+        help="Продолжить с чекпоинта Trainer'а (build/ner_model/checkpoint-N) после прерванного прогона. "
+        "HF Trainer уже сохраняет чекпоинт после каждой эпохи (save_strategy='epoch', save_total_limit=2) -- "
+        "эта опция просто передаёт путь в trainer.train(resume_from_checkpoint=...).",
+    )
     return parser.parse_args()
 
 
@@ -417,9 +483,14 @@ class HistoryCheckpointCallback(TrainerCallback):
         self.history_path = history_path
         self.base_history = base_history
 
-    def _write(self, status, trainer_state):
-        history = {**self.base_history, "status": status, "updated_at": datetime.now(timezone.utc).isoformat(),
-                   "log_history": trainer_state.log_history}
+    def _write(self, status, trainer_state, error=None):
+        history = {
+            **self.base_history,
+            "status": status,
+            "error": error,
+            "updated_at": datetime.now(UTC).isoformat(),
+            "log_history": trainer_state.log_history,
+        }
         with open(self.history_path, "w", encoding="utf-8") as f:
             json.dump(history, f, ensure_ascii=False, indent=2)
 
@@ -427,6 +498,12 @@ class HistoryCheckpointCallback(TrainerCallback):
         # Финальная запись (status="completed", final_eval_metrics) делается
         # явно в main() после trainer.evaluate() -- здесь только промежуточные.
         self._write("running", state)
+
+    def write_failed(self, trainer_state, error):
+        # См. аудит перед развёртыванием: без терминального статуса "failed"
+        # крах trainer.train() (OOM, обрыв процесса) оставлял history.json
+        # навечно в "running" -- SSE-стрим не мог отличить это от "ещё идёт".
+        self._write("failed", trainer_state, error=error)
 
 
 def main():
@@ -519,8 +596,12 @@ def main():
         callbacks=[history_callback],
     )
 
-    trainer.train()
-    metrics = trainer.evaluate()
+    try:
+        trainer.train(resume_from_checkpoint=str(args.resume_from_checkpoint) if args.resume_from_checkpoint else None)
+        metrics = trainer.evaluate()
+    except Exception as exc:
+        history_callback.write_failed(trainer.state, error=f"{type(exc).__name__}: {exc}")
+        raise
     print("Итоговые метрики на валидации (entity-level, §2.5.4):", metrics)
 
     if args.smoke_test:
@@ -537,7 +618,7 @@ def main():
     history = {
         **base_history,
         "status": "completed",
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
         "log_history": trainer.state.log_history,
         "final_eval_metrics": metrics,
     }

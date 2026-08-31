@@ -38,7 +38,7 @@
 import argparse
 import json
 import random
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -79,6 +79,7 @@ def set_seed(seed):
 # для проверки, что CNN-пайплайн (данные -> обучение -> сходимость) работает
 # корректно, без использования датасетов с неподтверждённой лицензией.
 # ---------------------------------------------------------------------------
+
 
 def _generate_synthetic_image(class_idx, size, rng):
     img = Image.new("RGB", (size, size), color=(34, 120, 34))  # зелёный фон "листа"
@@ -130,22 +131,27 @@ class SyntheticLeafDataset(Dataset):
 # Обучение
 # ---------------------------------------------------------------------------
 
+
 def build_transforms(image_size, train):
     normalize = transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
     if train:
-        return transforms.Compose([
-            transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomRotation(15),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        return transforms.Compose(
+            [
+                transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomRotation(15),
+                transforms.ColorJitter(brightness=0.2, contrast=0.2),
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
+    return transforms.Compose(
+        [
+            transforms.Resize((image_size, image_size)),
             transforms.ToTensor(),
             normalize,
-        ])
-    return transforms.Compose([
-        transforms.Resize((image_size, image_size)),
-        transforms.ToTensor(),
-        normalize,
-    ])
+        ]
+    )
 
 
 def restrict_to_common_classes(train_dataset, val_dataset):
@@ -208,12 +214,27 @@ def run_epoch(model, loader, criterion, optimizer, device, train):
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--data-dir", type=Path, default=Path("data/plantdoc"), help="Папка в формате ImageFolder (train/<class>/*.jpg + val-или-test/<class>/*.jpg). По умолчанию data/plantdoc -- положите туда датасет и запускайте вообще без флагов. Игнорируется при --smoke-test")
-    parser.add_argument("--val-subdir", default=None, help="Имя подпапки для валидации внутри --data-dir. Если не указано -- автоопределение: сперва 'val', иначе 'test' (PlantDoc использует 'test')")
-    parser.add_argument("--no-pretrained", action="store_true", help="Офлайн-резерв: обучение с нуля вместо весов ImageNet (только если download.pytorch.org недоступен). По умолчанию (без флага) веса ImageNet ИСПОЛЬЗУЮТСЯ -- см. docs/governance/licenses.md")
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path("data/plantdoc"),
+        help="Папка в формате ImageFolder (train/<class>/*.jpg + val-или-test/<class>/*.jpg). По умолчанию data/plantdoc -- положите туда датасет и запускайте вообще без флагов. Игнорируется при --smoke-test",
+    )
+    parser.add_argument(
+        "--val-subdir",
+        default=None,
+        help="Имя подпапки для валидации внутри --data-dir. Если не указано -- автоопределение: сперва 'val', иначе 'test' (PlantDoc использует 'test')",
+    )
+    parser.add_argument(
+        "--no-pretrained",
+        action="store_true",
+        help="Офлайн-резерв: обучение с нуля вместо весов ImageNet (только если download.pytorch.org недоступен). По умолчанию (без флага) веса ImageNet ИСПОЛЬЗУЮТСЯ -- см. docs/governance/licenses.md",
+    )
     parser.add_argument("--smoke-test", action="store_true", help="Офлайн-проверка на процедурно сгенерированных изображениях")
     parser.add_argument("--smoke-images-per-class", type=int, default=150)
-    parser.add_argument("--image-size", type=int, default=64, help="64 для smoke-теста (скорость на CPU); 224 для продового EfficientNet-B0")
+    parser.add_argument(
+        "--image-size", type=int, default=64, help="64 для smoke-теста (скорость на CPU); 224 для продового EfficientNet-B0"
+    )
     parser.add_argument("--output-dir", type=Path, default=Path("build/leaf_classifier"))
     parser.add_argument("--epochs-head", type=int, default=10, help="Фаза 1: обучается только классификационная голова (§2.5.4)")
     parser.add_argument("--epochs-full", type=int, default=20, help="Фаза 2: дообучение всей сети на малом LR")
@@ -222,6 +243,14 @@ def parse_args():
     parser.add_argument("--lr-full", type=float, default=1e-5)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--resume-from",
+        type=Path,
+        default=None,
+        help="Продолжить обучение с весов из указанного .pt (например, build/leaf_classifier/best_model.pt "
+        "после прерванного прогона) вместо случайной/предобученной инициализации. Счётчик эпох не "
+        "восстанавливается -- --epochs-head/--epochs-full задаются заново относительно этого старта.",
+    )
     return parser.parse_args()
 
 
@@ -242,7 +271,8 @@ def main():
         full_dataset = SyntheticLeafDataset(args.smoke_images_per_class, args.image_size, args.seed, transform=eval_tf)
         n_val = int(0.2 * len(full_dataset))
         train_subset, val_subset = random_split(
-            full_dataset, [len(full_dataset) - n_val, n_val],
+            full_dataset,
+            [len(full_dataset) - n_val, n_val],
             generator=torch.Generator().manual_seed(args.seed),
         )
         train_subset.dataset.transform = train_tf  # аугментации только для обучающей части
@@ -278,6 +308,9 @@ def main():
     val_loader = DataLoader(val_subset, batch_size=args.batch_size, shuffle=False)
 
     model = build_model(num_classes=len(class_names), pretrained=pretrained).to(device)
+    if args.resume_from is not None:
+        print(f"=== Продолжаю с весов {args.resume_from} ===")
+        model.load_state_dict(torch.load(args.resume_from, map_location=device))
     criterion = nn.CrossEntropyLoss()
 
     best_val_acc = 0.0
@@ -285,17 +318,19 @@ def main():
     epoch_log = []
     history_path = args.output_dir / "history.json"
 
-    def write_history(status):
+    def write_history(status, error=None):
         # Пишется после КАЖДОЙ эпохи (не только в конце) -- это то, что
         # позволяет фронту показывать прогресс обучения "в прямом эфире"
         # (GET /training/history/stream опрашивает mtime этого файла),
-        # а не только итог уже завершённого прогона.
+        # а не только итог уже завершённого прогона. status="failed" +
+        # error -- терминальный сигнал крашa (см. try/except ниже).
         history = {
             "task": "leaf_classifier",
             "status": status,
+            "error": error,
             "smoke_test": args.smoke_test,
             "pretrained": pretrained,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
             "hyperparameters": {
                 "epochs_head": epochs_head,
                 "epochs_full": epochs_full,
@@ -313,37 +348,67 @@ def main():
         with open(history_path, "w", encoding="utf-8") as f:
             json.dump(history, f, ensure_ascii=False, indent=2)
 
-    # Фаза 1: замороженный backbone, обучается только голова
-    set_backbone_trainable(model, trainable=False)
-    optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr_head)
-    print(f"--- Фаза 1: голова, {epochs_head} эпох, lr={args.lr_head} ---")
-    for epoch in range(1, epochs_head + 1):
-        train_loss, train_acc = run_epoch(model, train_loader, criterion, optimizer, device, train=True)
-        val_loss, val_acc = run_epoch(model, val_loader, criterion, optimizer, device, train=False)
-        print(f"[голова] эпоха {epoch}/{epochs_head}: train_loss={train_loss:.4f} train_acc={train_acc:.4f} "
-              f"val_loss={val_loss:.4f} val_acc={val_acc:.4f}")
-        epoch_log.append({"phase": "head", "epoch": epoch, "train_loss": train_loss, "train_acc": train_acc,
-                           "val_loss": val_loss, "val_acc": val_acc})
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            torch.save(model.state_dict(), args.output_dir / "best_model.pt")
-        write_history("running")
+    # Обе фазы обучения обёрнуты в try/except: без этого крах посреди эпохи
+    # (OOM на GPU, обрыв процесса и т.п.) оставлял history.json навечно в
+    # статусе "running" -- SSE-стрим (GET /training/history/stream) и фронт
+    # не могли отличить "ещё обучается" от "упало и никто не заметил". Теперь
+    # статус "failed" -- терминальный сигнал, а частично обученные веса
+    # (best_model.pt) уже сохранены за предыдущие успешные эпохи и не теряются.
+    try:
+        # Фаза 1: замороженный backbone, обучается только голова
+        set_backbone_trainable(model, trainable=False)
+        optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr_head)
+        print(f"--- Фаза 1: голова, {epochs_head} эпох, lr={args.lr_head} ---")
+        for epoch in range(1, epochs_head + 1):
+            train_loss, train_acc = run_epoch(model, train_loader, criterion, optimizer, device, train=True)
+            val_loss, val_acc = run_epoch(model, val_loader, criterion, optimizer, device, train=False)
+            print(
+                f"[голова] эпоха {epoch}/{epochs_head}: train_loss={train_loss:.4f} train_acc={train_acc:.4f} "
+                f"val_loss={val_loss:.4f} val_acc={val_acc:.4f}"
+            )
+            epoch_log.append(
+                {
+                    "phase": "head",
+                    "epoch": epoch,
+                    "train_loss": train_loss,
+                    "train_acc": train_acc,
+                    "val_loss": val_loss,
+                    "val_acc": val_acc,
+                }
+            )
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                torch.save(model.state_dict(), args.output_dir / "best_model.pt")
+            write_history("running")
 
-    # Фаза 2: разморозка всей сети, малый LR
-    set_backbone_trainable(model, trainable=True)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr_full)
-    print(f"--- Фаза 2: вся сеть, {epochs_full} эпох, lr={args.lr_full} ---")
-    for epoch in range(1, epochs_full + 1):
-        train_loss, train_acc = run_epoch(model, train_loader, criterion, optimizer, device, train=True)
-        val_loss, val_acc = run_epoch(model, val_loader, criterion, optimizer, device, train=False)
-        print(f"[полная сеть] эпоха {epoch}/{epochs_full}: train_loss={train_loss:.4f} train_acc={train_acc:.4f} "
-              f"val_loss={val_loss:.4f} val_acc={val_acc:.4f}")
-        epoch_log.append({"phase": "full", "epoch": epoch, "train_loss": train_loss, "train_acc": train_acc,
-                           "val_loss": val_loss, "val_acc": val_acc})
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            torch.save(model.state_dict(), args.output_dir / "best_model.pt")
-        write_history("running")
+        # Фаза 2: разморозка всей сети, малый LR
+        set_backbone_trainable(model, trainable=True)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr_full)
+        print(f"--- Фаза 2: вся сеть, {epochs_full} эпох, lr={args.lr_full} ---")
+        for epoch in range(1, epochs_full + 1):
+            train_loss, train_acc = run_epoch(model, train_loader, criterion, optimizer, device, train=True)
+            val_loss, val_acc = run_epoch(model, val_loader, criterion, optimizer, device, train=False)
+            print(
+                f"[полная сеть] эпоха {epoch}/{epochs_full}: train_loss={train_loss:.4f} train_acc={train_acc:.4f} "
+                f"val_loss={val_loss:.4f} val_acc={val_acc:.4f}"
+            )
+            epoch_log.append(
+                {
+                    "phase": "full",
+                    "epoch": epoch,
+                    "train_loss": train_loss,
+                    "train_acc": train_acc,
+                    "val_loss": val_loss,
+                    "val_acc": val_acc,
+                }
+            )
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                torch.save(model.state_dict(), args.output_dir / "best_model.pt")
+            write_history("running")
+    except Exception as exc:
+        write_history("failed", error=f"{type(exc).__name__}: {exc}")
+        raise
 
     print(f"Лучшая валидационная точность: {best_val_acc:.4f}")
     print(f"Классы: {class_names}")
