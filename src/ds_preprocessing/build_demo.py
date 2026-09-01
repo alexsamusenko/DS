@@ -1,15 +1,18 @@
 """Демонстрация комбинированного алгоритма на контролируемых данных.
 
-Сравнивает RMSE трёх вариантов -- только пространственный, только временной,
-комбинированный -- воспроизводя качественный результат Ли и др. (2021,
-§1.2.2 docs/chapter1... / §2.2.6): комбинированная оценка не хуже, а как
-правило лучше, каждой из оценок по отдельности.
+Сравнивает RMSE четырёх вариантов -- наивная базовая линия (линейная
+интерполяция по времени, §10.4), только пространственный (кригинг), только
+временной (локальный полиномиальный тренд), комбинированный -- воспроизводя
+качественный результат Ли и др. (2021, §1.2.2 docs/chapter1... / §2.2.6):
+комбинированная оценка не хуже, а как правило лучше, каждой из оценок по
+отдельности, и все три содержательных метода не хуже наивной базовой линии.
 
 Запуск: PYTHONPATH=src python3 -m ds_preprocessing.build_demo
 """
 
 import numpy as np
 
+from ds_preprocessing.baseline import naive_interpolation_baseline
 from ds_preprocessing.combine import fill_gaps
 from ds_preprocessing.metrics import rmse
 from ds_preprocessing.synthetic import generate_field, punch_holes
@@ -21,17 +24,22 @@ def run_demo(n_trials=10):
     Единичный запуск (одна случайная маска) статистически неустойчив --
     взвешивание по обратной дисперсии оптимально в среднем, а не гарантированно
     на каждой конкретной выборке (§2.2.6). Поэтому сравнение, как и в Ли и др.
-    (2021), проводится по агрегированной ошибке на серии испытаний.
+    (2021), проводится по агрегированной ошибке на серии испытаний, а для
+    статистической корректности (§10.6) наряду со средним отдельно
+    сохраняется и разброс (стандартное отклонение) по этим испытаниям, а не
+    только точечная оценка.
     """
     coords, times, X_true = generate_field()
 
-    rmses: dict[str, list[float]] = {"spatial": [], "temporal": [], "combined": []}
+    rmses: dict[str, list[float]] = {"naive": [], "spatial": [], "temporal": [], "combined": []}
     unrestored_total, anomalies_total = 0, 0
 
     for seed in range(n_trials):
         X_observed, mask_observed, mask_test = punch_holes(X_true, seed=seed)
         result = fill_gaps(coords, times, X_observed, mask_observed)
+        naive_est = naive_interpolation_baseline(times, X_observed, mask_observed)
 
+        rmses["naive"].append(rmse(naive_est[mask_test], X_true[mask_test]))
         rmses["spatial"].append(rmse(result["spatial_only"][mask_test], X_true[mask_test]))
         rmses["temporal"].append(rmse(result["temporal_only"][mask_test], X_true[mask_test]))
         rmses["combined"].append(rmse(result["filled"][mask_test], X_true[mask_test]))
@@ -39,12 +47,14 @@ def run_demo(n_trials=10):
         anomalies_total += int(result["anomalies"].sum())
 
     mean_rmse = {k: float(np.mean(v)) for k, v in rmses.items()}
+    std_rmse = {k: float(np.std(v, ddof=1)) for k, v in rmses.items()}
 
     print(f"Восстановление пропусков -- сравнение методов (§2.2.6), усреднено по {n_trials} испытаниям")
-    print(f"{'Метод':<25}{'Средний RMSE':>14}")
-    print(f"{'только пространственный':<25}{mean_rmse['spatial']:>14.4f}")
-    print(f"{'только временной':<25}{mean_rmse['temporal']:>14.4f}")
-    print(f"{'комбинированный':<25}{mean_rmse['combined']:>14.4f}")
+    print(f"{'Метод':<25}{'Средний RMSE':>14}{'Станд. откл.':>16}")
+    print(f"{'наивная база (интерп.)':<25}{mean_rmse['naive']:>14.4f}{std_rmse['naive']:>16.4f}")
+    print(f"{'только пространственный':<25}{mean_rmse['spatial']:>14.4f}{std_rmse['spatial']:>16.4f}")
+    print(f"{'только временной':<25}{mean_rmse['temporal']:>14.4f}{std_rmse['temporal']:>16.4f}")
+    print(f"{'комбинированный':<25}{mean_rmse['combined']:>14.4f}{std_rmse['combined']:>16.4f}")
     print()
     print(f"Невосстановимых ячеек (суммарно): {unrestored_total}")
     print(f"Обнаружено аномалий (суммарно): {anomalies_total}")
@@ -53,7 +63,7 @@ def run_demo(n_trials=10):
         "Комбинированный алгоритм не должен уступать в среднем оценке по одному источнику (§2.2.6)"
     )
 
-    return mean_rmse
+    return {"mean": mean_rmse, "std": std_rmse, "per_trial": rmses}
 
 
 if __name__ == "__main__":

@@ -49,5 +49,36 @@ def run_demo():
     return profit_diff, profit_uniform
 
 
+def run_variability(seeds=tuple(range(1, 11))):
+    """Оценить разброс относительного выигрыша дифференцированного внесения
+    над равномерным по нескольким независимым перегенерациям набора участков
+    (§10.6) -- единственный расчётный пример (seed=5, используемый в run_demo)
+    статистически не отличим от случайно удачной конфигурации без такой
+    проверки.
+    """
+    from ds_optimization.synthetic import generate_plots
+
+    gains = []
+    for seed in seeds:
+        plots = generate_plots(seed=seed)
+        total_area = float(plots["area"].sum())
+        budget = 70.0 * total_area
+        doses_diff = optimize_with_budget(plots, budget, DOSE_MIN, DOSE_MAX, PRICE_YIELD, PRICE_FERT)
+        dose_uniform = budget / total_area
+        doses_uniform = np.full(len(plots), dose_uniform)
+        profit_diff = total_profit(plots, doses_diff, PRICE_YIELD, PRICE_FERT)
+        profit_uniform = total_profit(plots, doses_uniform, PRICE_YIELD, PRICE_FERT)
+        gains.append((profit_diff / profit_uniform - 1) * 100)
+
+    gains = np.array(gains)
+    print(f"\nРазброс относительного выигрыша по {len(seeds)} независимым конфигурациям участков (seeds={seeds})")
+    print(f"Среднее: {gains.mean():.2f}%  Станд. откл.: {gains.std(ddof=1):.2f}%  Мин/Макс: {gains.min():.2f}% / {gains.max():.2f}%")
+
+    assert (gains >= -1e-6).all(), "Дифференцированное внесение не должно уступать равномерному ни на одной из конфигураций (§2.4.5)"
+
+    return gains
+
+
 if __name__ == "__main__":
     run_demo()
+    run_variability()
