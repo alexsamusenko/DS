@@ -3,6 +3,8 @@
 Запуск: PYTHONPATH=src python3 -m ds_optimization.build_demo
 """
 
+import time
+
 import numpy as np
 
 from ds_optimization.economics import profit
@@ -79,6 +81,33 @@ def run_variability(seeds=tuple(range(1, 11))):
     return gains
 
 
+def run_cost(n_calls=50):
+    """Измерить вычислительную стоимость оптимизации уровня L5 (§10.7, §4.3):
+    время формирования карты-задания для одного поля на процессоре, без
+    оптимизации инференса -- нужно для оценки практического эффекта
+    (сокращение времени цикла принятия решения, §4.3.1).
+    """
+    plots = generate_plots()
+    total_area = float(plots["area"].sum())
+    budget = 70.0 * total_area
+
+    for _ in range(3):
+        optimize_with_budget(plots, budget, DOSE_MIN, DOSE_MAX, PRICE_YIELD, PRICE_FERT)
+
+    times = []
+    for _ in range(n_calls):
+        t0 = time.perf_counter()
+        optimize_with_budget(plots, budget, DOSE_MIN, DOSE_MAX, PRICE_YIELD, PRICE_FERT)
+        times.append(time.perf_counter() - t0)
+
+    times_ms = np.array(times) * 1000
+    print(f"\nВычислительная стоимость оптимизации L5 ({len(plots)} участков), {n_calls} вызовов, CPU без GPU")
+    print(f"Формирование карты-задания: {times_ms.mean():.2f} ± {times_ms.std(ddof=1):.2f} мс (p50={np.percentile(times_ms, 50):.2f}, p95={np.percentile(times_ms, 95):.2f})")
+
+    return times_ms
+
+
 if __name__ == "__main__":
     run_demo()
     run_variability()
+    run_cost()
