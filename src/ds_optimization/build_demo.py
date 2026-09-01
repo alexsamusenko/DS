@@ -107,7 +107,40 @@ def run_cost(n_calls=50):
     return times_ms
 
 
+def run_sensitivity_dose_level(avg_doses=(30, 50, 70, 90, 110, 130)):
+    """Чувствительность относительного выигрыша дифференцированного внесения
+    к среднему уровню бюджета (§10.5) -- run_demo() и run_variability()
+    фиксируют средний бюджет на уровне 70 кг/га; здесь проверяется,
+    сохраняется ли неотрицательность выигрыша и как меняется его величина
+    при отклонении от этого уровня (недо- и перерасход относительно
+    локально оптимальной дозы конкретного участка).
+    """
+    plots = generate_plots()
+    total_area = float(plots["area"].sum())
+    rows = []
+    for avg_dose in avg_doses:
+        budget = avg_dose * total_area
+        doses_diff = optimize_with_budget(plots, budget, DOSE_MIN, DOSE_MAX, PRICE_YIELD, PRICE_FERT)
+        doses_uniform = np.full(len(plots), budget / total_area)
+        profit_diff = total_profit(plots, doses_diff, PRICE_YIELD, PRICE_FERT)
+        profit_uniform = total_profit(plots, doses_uniform, PRICE_YIELD, PRICE_FERT)
+        gain_pct = (profit_diff / profit_uniform - 1) * 100
+        rows.append({"avg_dose": avg_dose, "profit_diff": profit_diff, "profit_uniform": profit_uniform, "gain_pct": gain_pct})
+
+    print(f"\nЧувствительность выигрыша к среднему уровню бюджета (§10.5)")
+    print(f"{'Средняя доза, кг/га':>20}{'Прибыль дифф.':>16}{'Прибыль равн.':>16}{'Выигрыш, %':>12}")
+    for r in rows:
+        print(f"{r['avg_dose']:>20}{r['profit_diff']:>16.1f}{r['profit_uniform']:>16.1f}{r['gain_pct']:>12.3f}")
+
+    assert all(r["profit_diff"] >= r["profit_uniform"] - 1e-6 for r in rows), (
+        "Дифференцированное внесение не должно уступать равномерному ни при одном уровне бюджета (§2.4.5)"
+    )
+
+    return rows
+
+
 if __name__ == "__main__":
     run_demo()
     run_variability()
     run_cost()
+    run_sensitivity_dose_level()

@@ -66,5 +66,39 @@ def run_demo(n_trials=10):
     return {"mean": mean_rmse, "std": std_rmse, "per_trial": rmses}
 
 
+def run_robustness_missing_fraction(fractions=(0.1, 0.2, 0.3, 0.4, 0.5), n_trials=10):
+    """Устойчивость комбинированного метода к доле пропусков (§10.5): RMSE
+    комбинированного метода и наивной базы при доле пропусков от 10 до 50%
+    того же поля, что и в run_demo() -- проверка того, что преимущество
+    метода не является особенностью конкретного (20%) уровня пропусков.
+    """
+    coords, times, X_true = generate_field()
+    rows = []
+    for frac in fractions:
+        combined_vals, naive_vals, unrestored_total = [], [], 0
+        for seed in range(n_trials):
+            X_observed, mask_observed, mask_test = punch_holes(X_true, missing_fraction=frac, seed=seed)
+            result = fill_gaps(coords, times, X_observed, mask_observed)
+            naive_est = naive_interpolation_baseline(times, X_observed, mask_observed)
+            combined_vals.append(rmse(result["filled"][mask_test], X_true[mask_test]))
+            naive_vals.append(rmse(naive_est[mask_test], X_true[mask_test]))
+            unrestored_total += int(result["unrestored"].sum())
+        rows.append({
+            "fraction": frac,
+            "combined_mean": float(np.mean(combined_vals)), "combined_std": float(np.std(combined_vals, ddof=1)),
+            "naive_mean": float(np.mean(naive_vals)), "naive_std": float(np.std(naive_vals, ddof=1)),
+            "unrestored": unrestored_total,
+        })
+
+    print(f"\nУстойчивость к доле пропусков (§10.5), {n_trials} испытаний на каждый уровень")
+    print(f"{'Доля пропусков':>16}{'Комбинированный':>20}{'Наивная база':>20}{'Невосст.':>10}")
+    for r in rows:
+        print(f"{r['fraction']:>16.1f}{r['combined_mean']:>13.4f}±{r['combined_std']:<5.4f}"
+              f"{r['naive_mean']:>13.4f}±{r['naive_std']:<5.4f}{r['unrestored']:>10}")
+
+    return rows
+
+
 if __name__ == "__main__":
     run_demo()
+    run_robustness_missing_fraction()
