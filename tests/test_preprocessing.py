@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ds_preprocessing.anomaly import detect_anomalies  # noqa: E402
+from ds_preprocessing.baseline import naive_interpolation_baseline  # noqa: E402
 from ds_preprocessing.combine import fill_gaps  # noqa: E402
 from ds_preprocessing.metrics import mae, rmse  # noqa: E402
 from ds_preprocessing.spatial import spatial_estimate  # noqa: E402
@@ -137,3 +138,79 @@ def test_fill_gaps_raises_on_bad_input():
     mask = np.ones((2, 2), dtype=bool)
     with pytest.raises(DataValidationError):
         fill_gaps(coords, times, X, mask)
+
+
+def test_naive_baseline_recovers_linear_series():
+    """На точно линейном ряду линейная интерполяция обязана быть почти точной --
+    это минимальная проверка корректности реализации (baseline.py), отдельная
+    от статистических свойств, которые проверяются на зашумлённых полях."""
+    times = np.arange(10, dtype=float)
+    true_row = 2.0 * times + 5.0  # y = 2t + 5
+    X = np.tile(true_row, (2, 1))
+
+    mask_observed = np.ones((2, 10), dtype=bool)
+    # прячем несколько внутренних точек (не крайние -- иначе это уже экстраполяция)
+    hidden = [2, 3, 6]
+    mask_observed[0, hidden] = False
+
+    estimate = naive_interpolation_baseline(times, X, mask_observed)
+
+    assert np.allclose(estimate[0, hidden], true_row[hidden], atol=1e-9)
+    # вторая строка полностью наблюдаема -- baseline не должен её трогать (NaN, не 0)
+    assert np.all(np.isnan(estimate[1]))
+
+
+def test_naive_baseline_row_without_observations_is_all_nan():
+    """Если для точки m нет ни одного наблюдения, интерполяция невозможна в
+    принципе -- вся строка должна остаться NaN, а не какое-то произвольное
+    значение (0, среднее и т.п.)."""
+    times = np.arange(5, dtype=float)
+    X = np.zeros((2, 5))
+    mask_observed = np.zeros((2, 5), dtype=bool)
+    mask_observed[1] = True  # у второй точки наблюдения есть, у первой -- нет
+
+    estimate = naive_interpolation_baseline(times, X, mask_observed)
+
+    assert np.all(np.isnan(estimate[0]))
+    # у второй строки все точки наблюдаемы -- восстанавливать нечего, тоже NaN
+    assert np.all(np.isnan(estimate[1]))
+
+
+def test_naive_baseline_holds_constant_with_single_observation():
+    """С единственным наблюдением интерполяция вырождается в константу
+    (поведение np.interp по умолчанию за пределами диапазона наблюдений) --
+    документированное, но нетривиальное упрощение простой базовой линии."""
+    times = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+    X = np.zeros((1, 5))
+    X[0, 2] = 7.0
+    mask_observed = np.zeros((1, 5), dtype=bool)
+    mask_observed[0, 2] = True  # единственное наблюдение -- в середине ряда
+
+    estimate = naive_interpolation_baseline(times, X, mask_observed)
+
+    missing = [0, 1, 3, 4]
+    assert np.allclose(estimate[0, missing], 7.0)
+
+
+def test_combined_beats_naive_baseline_per_trial():
+    """Реферат заявляет, что комбинированный метод не уступает в точности
+    использованию только пространственной или только временной информации.
+    Отдельно проверяем и более сильное практическое сравнение -- с простой
+    базовой линией (baseline.py), которая в §1.2.2 названа наиболее
+    распространённой на практике: на контролируемых данных комбинированный
+    метод обязан быть не хуже неё в каждом отдельном испытании, а не только
+    в среднем по серии."""
+    coords, times, X_true = generate_field()
+
+    for seed in range(8):
+        X_observed, mask_observed, mask_test = punch_holes(X_true, seed=seed)
+        result = fill_gaps(coords, times, X_observed, mask_observed)
+        naive_est = naive_interpolation_baseline(times, X_observed, mask_observed)
+
+        combined_error = rmse(result["filled"][mask_test], X_true[mask_test])
+        naive_error = rmse(naive_est[mask_test], X_true[mask_test])
+
+        assert combined_error <= naive_error, (
+            f"seed={seed}: комбинированный метод (RMSE={combined_error:.4f}) "
+            f"хуже наивной базы (RMSE={naive_error:.4f})"
+        )

@@ -6,7 +6,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ds_ontology.integration import (  # noqa: E402
+    assert_agro_priem,
     assert_soil_reading,
+    assert_weather_event,
     get_or_create_istochnik,
     get_or_create_pole,
     resolve_entity_mention,
@@ -76,6 +78,47 @@ def test_mu_integration_creates_anchored_triples():
     )
     assert reading in pole.harakterizuetsya
     assert reading.zafiksirovan_v is istochnik
+
+
+def test_assert_weather_event_creates_anchored_triple():
+    """phi_i: метеособытие должно присоединиться к Pole через podverzheno
+    (Поле -> ПогодноеСобытие, объектное отношение R_O из §2.1.3) с заданными
+    атрибутами. Метеособытие намеренно не привязывается к Источнику (см.
+    integration.py) -- это проверяется отдельно ниже."""
+    onto = build_schema()
+    pole = get_or_create_pole(onto, pole_id="100")
+
+    sobytie = assert_weather_event(onto, pole, tip_sobytiya="заморозок", intensivnost=-3.5, period="2026-04-10")
+
+    assert sobytie.tip_sobytiya == "заморозок"
+    assert sobytie.intensivnost == -3.5
+    assert sobytie.period == "2026-04-10"
+    assert sobytie in pole.podverzheno
+
+
+def test_assert_agro_priem_creates_anchored_triple_with_source():
+    """phi_i: агроприём должен присоединиться к Pole через obrabatyvaetsya
+    (Поле -> АгроПриём) и хранить функциональную ссылку opisan_v на
+    Источник (в отличие от метеособытия, агроприём привязывается к
+    источнику происхождения для последующей оценки достоверности)."""
+    onto = build_schema()
+    pole = get_or_create_pole(onto, pole_id="101")
+    istochnik = get_or_create_istochnik(onto, tip="Журнал полевых работ", format_istochnika="текст", dostovernost=0.8)
+
+    priem = assert_agro_priem(
+        onto,
+        pole,
+        tip_operatsii="внесение азотных удобрений",
+        doza=120.0,
+        data_priema="2026-04-15",
+        istochnik=istochnik,
+    )
+
+    assert priem.tip_operatsii == "внесение азотных удобрений"
+    assert priem.doza == 120.0
+    assert priem.data_priema == "2026-04-15"
+    assert priem.opisan_v is istochnik
+    assert priem in pole.obrabatyvaetsya
 
 
 def test_lambda_resolves_regional_synonym():

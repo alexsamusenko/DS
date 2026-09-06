@@ -22,10 +22,14 @@ def _meters_per_degree_lon(lat_deg: float) -> float:
     return KM_PER_DEGREE_LAT * math.cos(math.radians(lat_deg))
 
 
-def plot_square_polygon(index: int, area_ha: float, grid_cols: int = 5) -> list[tuple[float, float]]:
+def plot_square_polygon(plot_id: int, area_ha: float, grid_cols: int = 5) -> list[tuple[float, float]]:
     """Вернуть замкнутый полигон (список (lat, lon), первая точка = последняя)
-    для участка `index` площадью `area_ha`, размещённого на регулярной сетке."""
-    row, col = divmod(index, grid_cols)
+    для участка с идентификатором `plot_id` площадью `area_ha`, размещённого на
+    регулярной сетке. Ячейка сетки определяется детерминированно самим
+    `plot_id` (бизнес-ключ участка), а не его позицией в переданном наборе --
+    геометрия одного и того же участка не зависит от порядка или состава
+    остальных участков при повторных вызовах (сортировка, фильтрация и т.п.)."""
+    row, col = divmod(plot_id, grid_cols)
     center_lat = BASE_LAT + row * (CELL_SPACING_KM / KM_PER_DEGREE_LAT)
     center_lon = BASE_LON + col * (CELL_SPACING_KM / _meters_per_degree_lon(BASE_LAT))
 

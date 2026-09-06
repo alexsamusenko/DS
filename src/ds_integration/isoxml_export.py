@@ -59,7 +59,7 @@ def export_task_data(
         plot_id = int(plot["plot_id"])
         area_ha = float(plot["area"])
         dose = float(doses[i])
-        polygon = plot_square_polygon(i, area_ha)
+        polygon = plot_square_polygon(plot_id, area_ha)
 
         pfd = ET.SubElement(root, "PFD", A=f"PFD{plot_id}", B=f"Участок {plot_id}", C=f"{area_ha:.4f}", I="CTR1")
         _polygon_element(pfd, polygon)
