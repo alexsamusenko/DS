@@ -121,6 +121,33 @@ def test_assert_agro_priem_creates_anchored_triple_with_source():
     assert priem in pole.obrabatyvaetsya
 
 
+def test_get_or_create_pole_is_idempotent():
+    """Повторный вызов с тем же pole_id должен вернуть тот же экземпляр,
+    а не создать дубликат (важно при повторной обработке данных одного
+    и того же поля из разных источников в разное время)."""
+    onto = build_schema()
+    first = get_or_create_pole(onto, pole_id="200")
+    second = get_or_create_pole(onto, pole_id="200")
+    other = get_or_create_pole(onto, pole_id="201")
+
+    assert second is first
+    assert other is not first
+    assert len(list(onto.Pole.instances())) == 2
+
+
+def test_get_or_create_istochnik_is_idempotent():
+    """Повторный вызов с теми же идентифицирующими данными должен вернуть
+    тот же экземпляр Источника, а не создать дубликат."""
+    onto = build_schema()
+    first = get_or_create_istochnik(onto, tip="IoT-датчик почвы", format_istochnika="JSON")
+    second = get_or_create_istochnik(onto, tip="IoT-датчик почвы", format_istochnika="JSON")
+    other = get_or_create_istochnik(onto, tip="Лабораторный анализ", format_istochnika="PDF")
+
+    assert second is first
+    assert other is not first
+    assert len(list(onto.Istochnik.instances())) == 2
+
+
 def test_lambda_resolves_regional_synonym():
     """lambda/resolve: региональный синоним должен указывать на существующий экземпляр (§2.1.5)."""
     onto = build_schema()
