@@ -53,8 +53,16 @@ def fill_gaps(coords, times, X, mask_observed, drop_anomalies=True):
             has_temporal = not np.isnan(temporal_est[m, t])
 
             if has_spatial and has_temporal:
-                w_s = 1.0 / spatial_var[m, t]
-                w_t = 1.0 / temporal_var[m, t]
+                # Дисперсия в знаменателе веса не должна быть <= 0: кригинг
+                # теоретически неотрицателен, но численно может дать
+                # исчезающе малую (не отрицательную) дисперсию, и деление на
+                # неё же порождает inf/inf = NaN в комбинированной оценке --
+                # тихо испорченный результат вместо явного "невосстановлено".
+                # Отсечка снизу устраняет это, не меняя веса на практике
+                # (масштаб eps на порядки меньше любой содержательной
+                # дисперсии показателя).
+                w_s = 1.0 / max(spatial_var[m, t], 1e-12)
+                w_t = 1.0 / max(temporal_var[m, t], 1e-12)
                 filled[m, t] = (w_s * spatial_est[m, t] + w_t * temporal_est[m, t]) / (w_s + w_t)
             elif has_spatial:
                 filled[m, t] = spatial_est[m, t]

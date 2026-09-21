@@ -8,6 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import ds_preprocessing.combine as combine_module  # noqa: E402
 from ds_preprocessing.anomaly import detect_anomalies  # noqa: E402
 from ds_preprocessing.baseline import naive_interpolation_baseline  # noqa: E402
 from ds_preprocessing.combine import fill_gaps  # noqa: E402
@@ -34,6 +35,144 @@ def test_anomaly_detection_flags_injected_outlier():
     # выбросы вносятся только в наблюдаемые ячейки -- аномалии должны быть подмножеством наблюдаемых
     assert not anomalies[~mask_observed].any()
     assert anomalies.sum() >= 1
+
+
+def test_anomaly_detection_skips_series_with_too_few_observations():
+    """При < 4 наблюдениях в ряде локальный тренд ненадёжен -- детектор должен
+    молча пропустить точку (ни одной аномалии, без деления на ноль/ошибок),
+    а не пытаться что-то определить по единственному-двум наблюдениям."""
+    X = np.array([[1.0, 2.0, 100.0]])  # выброс есть, но наблюдений всего 3
+    mask_observed = np.array([[True, True, True]])
+
+    anomalies = detect_anomalies(X, mask_observed)
+
+    assert not anomalies.any()
+
+
+def test_spatial_estimate_handles_degenerate_constant_slice():
+    """Вырожденная пространственная конфигурация: все наблюдения одного среза
+    времени точно совпадают -- pykrige не может подобрать вариограмму и
+    поднимает ValueError при оптимизации. spatial_estimate обязана не упасть,
+    а оставить оценку этого среза как NaN (оценка попросту недоступна),
+    делегируя решение вызывающему коду (fill_gaps -> запасной источник или
+    'невосстановлено')."""
+    coords = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [2.0, 0.0]])
+    X = np.full((5, 3), 5.0)  # совершенно постоянное поле в каждом срезе
+    mask_observed = np.ones((5, 3), dtype=bool)
+    mask_observed[0, 1] = False  # один пропуск, который нужно оценить кригингом
+
+    estimate, variance = spatial_estimate(coords, X, mask_observed)
+
+    assert np.isnan(estimate[0, 1])
+    assert np.isnan(variance[0, 1])
+
+
+def test_fill_gaps_survives_degenerate_spatial_configuration():
+    """Тот же вырожденный случай (константный срез) через полный конвейер
+    fill_gaps: раньше необработанное исключение pykrige приводило к падению
+    всего восстановления. Теперь пропуск для этой ячейки закрывается
+    временной оценкой (она не зависит от пространственной конфигурации),
+    либо явно помечается 'невосстановлено' -- но fill_gaps не падает."""
+    coords = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [2.0, 0.0]])
+    times = np.arange(6, dtype=float)
+    X = np.full((5, 6), 5.0)
+    mask_observed = np.ones((5, 6), dtype=bool)
+    mask_observed[0, 2] = False
+
+    result = fill_gaps(coords, times, X, mask_observed)
+
+    assert not result["unrestored"][0, 2]
+    assert result["filled"][0, 2] == pytest.approx(5.0)
+
+
+def test_fill_gaps_falls_back_to_spatial_only_when_temporal_unavailable():
+    """Единственный момент времени -> временной тренд в принципе не строится
+    (MIN_POINTS_FOR_TREND=2), но пространственных соседей достаточно --
+    комбинированная оценка обязана выродиться в чисто пространственную,
+    без NaN и без деления на нулевой вес (§2.2.5)."""
+    coords, times, X_true = generate_field(grid_size=4, n_times=1)
+    mask_observed = np.ones(X_true.shape, dtype=bool)
+    mask_observed[0, 0] = False
+
+    result = fill_gaps(coords, times, X_true, mask_observed)
+
+    assert np.isnan(result["temporal_only"][0, 0])
+    assert not np.isnan(result["spatial_only"][0, 0])
+    assert not result["unrestored"][0, 0]
+    assert result["filled"][0, 0] == pytest.approx(result["spatial_only"][0, 0])
+
+
+def test_fill_gaps_marks_unrestored_when_neither_source_available():
+    """Единственная точка (нет пространственных соседей) и единственное
+    наблюдение в её ряде (нет временного тренда) -- ни одна из оценок
+    недоступна, ячейка обязана быть явно помечена как невосстановленная, а
+    не получить произвольное/нулевое значение (принцип §2.2.5 и реферата)."""
+    coords = np.array([[0.0, 0.0]])
+    times = np.array([0.0, 1.0])
+    X = np.array([[1.0, 1.0]])
+    mask_observed = np.array([[True, False]])
+
+    result = fill_gaps(coords, times, X, mask_observed)
+
+    assert result["unrestored"][0, 1]
+    assert np.isnan(result["filled"][0, 1])
+
+
+def test_fill_gaps_weight_guard_against_nonpositive_variance(monkeypatch):
+    """Регрессионный тест на исправленный баг взвешивания по обратной
+    дисперсии: если один из источников (гипотетически, из-за численной
+    неустойчивости) дал дисперсию <= 0, деление на неё же раньше давало
+    inf/inf = NaN в комбинированной оценке -- тихо испорченный результат
+    вместо числа или явного 'невосстановлено'. Проверяем через monkeypatch
+    (естественным путём pykrige/LOOCV нулевую дисперсию не выдают, см.
+    test_spatial_estimate_recovers_smooth_field)."""
+    coords = np.array([[0.0, 0.0], [1.0, 0.0]])
+    times = np.array([0.0, 1.0])
+    X = np.array([[1.0, 2.0], [3.0, 4.0]])
+    mask_observed = np.array([[True, False], [True, True]])
+
+    def fake_spatial(coords, X, mask):
+        est = np.full(X.shape, np.nan)
+        var = np.full(X.shape, np.nan)
+        est[0, 1] = 10.0
+        var[0, 1] = 0.0  # вырожденная нулевая дисперсия
+        return est, var
+
+    def fake_temporal(times, X, mask):
+        est = np.full(X.shape, np.nan)
+        var = np.full(X.shape, np.nan)
+        est[0, 1] = 20.0
+        var[0, 1] = 4.0
+        return est, var
+
+    monkeypatch.setattr(combine_module, "spatial_estimate", fake_spatial)
+    monkeypatch.setattr(combine_module, "temporal_estimate", fake_temporal)
+
+    result = fill_gaps(coords, times, X, mask_observed)
+
+    # при var_s -> 0 вес пространственной оценки доминирует -- итог должен
+    # быть конечным числом, близким к пространственной оценке, а не NaN
+    assert np.isfinite(result["filled"][0, 1])
+    assert result["filled"][0, 1] == pytest.approx(10.0, abs=1e-6)
+
+
+def test_fill_gaps_drop_anomalies_false_keeps_outlier_in_fit():
+    """drop_anomalies=False -- явно документированная альтернативная ветка
+    (используется, например, для построения графика 'до устранения
+    аномалий'): аномальные точки должны остаться среди наблюдаемых и
+    участвовать в оценках, а не быть исключёнными."""
+    coords, times, X_true = generate_field(grid_size=5, n_times=15)
+    X_observed, mask_observed, _ = punch_holes(X_true, missing_fraction=0.1, n_outliers=5, seed=1)
+
+    result_dropped = fill_gaps(coords, times, X_observed, mask_observed, drop_anomalies=True)
+    result_kept = fill_gaps(coords, times, X_observed, mask_observed, drop_anomalies=False)
+
+    assert result_dropped["anomalies"].sum() >= 1
+    # аномалии всё равно детектируются одинаково (детекция не зависит от drop_anomalies)
+    assert np.array_equal(result_dropped["anomalies"], result_kept["anomalies"])
+    # но при drop_anomalies=False аномальные наблюдения остаются в filled как есть
+    anomaly_cells = result_kept["anomalies"]
+    assert np.array_equal(result_kept["filled"][anomaly_cells], X_observed[anomaly_cells])
 
 
 def test_spatial_estimate_recovers_smooth_field():

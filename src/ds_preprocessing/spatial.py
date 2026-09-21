@@ -26,15 +26,25 @@ def spatial_estimate(coords, X, mask_observed):
         if missing_idx.size == 0 or observed_idx.size < MIN_POINTS_FOR_KRIGING:
             continue
 
-        ok = OrdinaryKriging(
-            coords[observed_idx, 0],
-            coords[observed_idx, 1],
-            X[observed_idx, t],
-            variogram_model="spherical",
-            verbose=False,
-            enable_plotting=False,
-        )
-        pred, var = ok.execute("points", coords[missing_idx, 0], coords[missing_idx, 1])
+        try:
+            ok = OrdinaryKriging(
+                coords[observed_idx, 0],
+                coords[observed_idx, 1],
+                X[observed_idx, t],
+                variogram_model="spherical",
+                verbose=False,
+                enable_plotting=False,
+            )
+            pred, var = ok.execute("points", coords[missing_idx, 0], coords[missing_idx, 1])
+        except ValueError:
+            # Вырожденная пространственная конфигурация в этом срезе (например,
+            # наблюдения этого момента времени все точно совпадают, и
+            # вариограмма не может быть подобрана -- pykrige поднимает
+            # ValueError при оптимизации). Пространственная оценка для среза
+            # просто недоступна: estimate/variance остаются NaN, и fill_gaps
+            # (§2.2.5) отступает на временную оценку либо помечает ячейку
+            # как невосстановленную -- вместо падения всего конвейера.
+            continue
         estimate[missing_idx, t] = np.asarray(pred)
         variance[missing_idx, t] = np.asarray(var)
 
