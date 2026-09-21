@@ -124,3 +124,63 @@ def test_validate_budget_rejects_infeasible_budget():
     plots = generate_plots(n_plots=5)
     with pytest.raises(OptimizationInputError, match="меньше стоимости"):
         validate_budget(plots, budget=-1.0, dose_min=10.0)
+
+
+def test_validate_plots_rejects_empty_table():
+    import pandas as pd
+
+    plots = pd.DataFrame({"baseline": [], "R": [], "s": [], "area": []})
+    with pytest.raises(OptimizationInputError, match="пуста"):
+        validate_plots(plots, DOSE_MIN, DOSE_MAX, PRICE_YIELD, PRICE_FERT)
+
+
+def test_validate_plots_rejects_negative_price():
+    plots = generate_plots(n_plots=3)
+    with pytest.raises(OptimizationInputError, match="Цены"):
+        validate_plots(plots, DOSE_MIN, DOSE_MAX, price_yield=PRICE_YIELD, price_fert=-50.0)
+
+
+def test_unconstrained_zero_response_returns_dose_min():
+    """Участок без отклика на удобрение (R=0) -- любая доза сверх dose_min не окупается."""
+    import pandas as pd
+
+    plots = pd.DataFrame({"plot_id": [0], "baseline": [40.0], "R": [0.0], "s": [60.0], "area": [1.0]})
+    doses = optimize_unconstrained(plots, DOSE_MIN, DOSE_MAX, PRICE_YIELD, PRICE_FERT)
+    assert doses[0] == pytest.approx(DOSE_MIN)
+
+
+def test_budget_zero_forces_dose_min_everywhere():
+    plots = generate_plots(n_plots=5, seed=7)
+    doses = optimize_with_budget(plots, budget=0.0, dose_min=0.0, dose_max=DOSE_MAX, price_yield=PRICE_YIELD, price_fert=PRICE_FERT)
+    np.testing.assert_allclose(doses, 0.0, atol=1e-6)
+
+
+def test_budget_shadow_price_is_independent_of_plot_area():
+    """Регрессия: при одинаковой кривой отклика (R, s, baseline) оптимальная доза на
+    гектар не должна зависеть от площади участка -- теневая цена лямбда в условии
+    первого порядка p_Y*Y_k'(d_k) = p_D + lambda едина для всех участков и не
+    домножается на area_k (площадь входит только в суммарный расход sum(area_k*d_k),
+    по которому лямбда подбирается методом Брента)."""
+    import pandas as pd
+
+    plots = pd.DataFrame(
+        {
+            "plot_id": [0, 1],
+            "baseline": [40.0, 40.0],
+            "R": [8.0, 8.0],
+            "s": [60.0, 60.0],
+            "area": [1.0, 5.0],
+        }
+    )
+    budget = 30.0 * plots["area"].sum()
+    doses = optimize_with_budget(plots, budget, DOSE_MIN, DOSE_MAX, PRICE_YIELD, PRICE_FERT)
+    assert doses[0] == pytest.approx(doses[1], rel=1e-6)
+
+
+def test_budget_with_single_plot_matches_binding_constraint():
+    import pandas as pd
+
+    plots = pd.DataFrame({"plot_id": [0], "baseline": [40.0], "R": [8.0], "s": [60.0], "area": [2.0]})
+    budget = 20.0 * plots["area"].iloc[0]  # заведомо связывающий (ниже свободного оптимума)
+    doses = optimize_with_budget(plots, budget, DOSE_MIN, DOSE_MAX, PRICE_YIELD, PRICE_FERT)
+    assert doses[0] * plots["area"].iloc[0] == pytest.approx(budget, abs=1e-4)

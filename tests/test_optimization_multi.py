@@ -107,3 +107,18 @@ def test_optimize_multi_rejects_missing_s_column():
     plots = _multi_plots().drop(columns=["s_K"])
     with pytest.raises(OptimizationInputError):
         optimize_unconstrained_multi(plots, NUTRIENTS, DOSE_MIN, DOSE_MAX, PRICE_YIELD, price_fert=[50.0, 60.0, 40.0])
+
+
+def test_optimize_multi_rejects_empty_table():
+    plots = _multi_plots().iloc[0:0]
+    with pytest.raises(OptimizationInputError, match="пуста"):
+        optimize_unconstrained_multi(plots, NUTRIENTS, DOSE_MIN, DOSE_MAX, PRICE_YIELD, price_fert=[50.0, 60.0, 40.0])
+
+
+def test_optimize_multi_with_single_plot():
+    """Единственный участок -- вырожденный по числу участков, но не по числу
+    удобрений (J=3), случай."""
+    plots = _multi_plots(n_plots=1, seed=9)
+    doses = optimize_unconstrained_multi(plots, NUTRIENTS, DOSE_MIN, DOSE_MAX, PRICE_YIELD, price_fert=[50.0, 60.0, 40.0])
+    assert doses.shape == (1, len(NUTRIENTS))
+    assert np.all(doses >= DOSE_MIN) and np.all(doses <= DOSE_MAX)

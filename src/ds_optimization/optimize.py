@@ -12,7 +12,11 @@ EPS_R = 1e-9
 def _dose_for_shadow_price(R, s, shadow_price, price_yield, dose_min, dose_max):
     """d_k(lambda) = clip(-s * ln(shadow_price * s / (price_yield * R)), dmin, dmax).
 
-    shadow_price = price_fert (без бюджета) или price_fert + lambda*area_k (с бюджетом).
+    shadow_price = price_fert (без бюджета) или price_fert + lambda (с бюджетом). lambda
+    -- единый (не зависящий от участка) множитель Лагранжа: в условии первого порядка
+    d/d(d_k) [area_k * profit_k(d_k) - lambda * area_k * d_k] = 0 площадь area_k
+    сокращается, поэтому поправки на площадь участка в теневой цене нет -- площадь входит
+    только в суммарный расход sum(area_k * d_k), по которому лямбда подбирается методом Брента.
     """
     if R <= EPS_R:
         return dose_min
@@ -34,7 +38,7 @@ def optimize_unconstrained(plots, dose_min, dose_max, price_yield, price_fert):
 
 def _total_dose_at_lambda(plots, lam, price_yield, price_fert, dose_min, dose_max):
     doses = np.array(
-        [_dose_for_shadow_price(row.R, row.s, price_fert + lam * row.area, price_yield, dose_min, dose_max) for row in plots.itertuples()]
+        [_dose_for_shadow_price(row.R, row.s, price_fert + lam, price_yield, dose_min, dose_max) for row in plots.itertuples()]
     )
     return doses, float(np.sum(doses * plots["area"].to_numpy()))
 
