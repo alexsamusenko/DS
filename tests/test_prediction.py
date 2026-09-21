@@ -3,11 +3,12 @@
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ds_prediction.explain import modality_importance  # noqa: E402
+from ds_prediction.explain import explain_predictions, modality_importance  # noqa: E402
 from ds_prediction.features import MODALITY_COLUMNS, modality_of, select_modalities  # noqa: E402
 from ds_prediction.model import DEFAULT_MODALITIES, evaluate_grouped_cv, train_model  # noqa: E402
 from ds_prediction.synthetic import generate_dataset  # noqa: E402
@@ -66,6 +67,58 @@ def test_grouped_cv_prevents_leakage_across_years_of_same_field():
         train_fields = set(groups[train_idx])
         test_fields = set(groups[test_idx])
         assert train_fields.isdisjoint(test_fields)
+
+
+def test_evaluate_grouped_cv_really_uses_group_kfold_not_plain_kfold(monkeypatch):
+    """Регрессионный тест на §2.3.5: если бы кто-то заменил GroupKFold в
+    model.py на обычный KFold (случайное разбиение), эта проверка должна
+    упасть. В отличие от test_grouped_cv_prevents_leakage_across_years_of_same_field
+    (который проверяет только поведение sklearn.GroupKFold в изоляции), здесь
+    перехватываются РЕАЛЬНЫЕ разбиения, использованные внутри
+    evaluate_grouped_cv, через патч метода split того же объекта класса,
+    который импортирован в ds_prediction.model."""
+    from sklearn.model_selection import GroupKFold
+
+    captured = []
+    original_split = GroupKFold.split
+
+    def spying_split(self, X, y=None, groups=None):
+        for train_idx, test_idx in original_split(self, X, y, groups):
+            captured.append((train_idx, test_idx, groups))
+            yield train_idx, test_idx
+
+    monkeypatch.setattr(GroupKFold, "split", spying_split)
+
+    df = generate_dataset(n_fields=12, n_years=3)
+    evaluate_grouped_cv(df, modalities=DEFAULT_MODALITIES, n_splits=4)
+
+    assert captured, (
+        "GroupKFold.split ни разу не был вызван внутри evaluate_grouped_cv -- "
+        "похоже, валидация больше не группируется по field_id (§2.3.5)"
+    )
+    for train_idx, test_idx, groups in captured:
+        assert groups is not None, "GroupKFold вызван без groups -- эквивалентно случайному KFold"
+        train_fields = set(groups[train_idx])
+        test_fields = set(groups[test_idx])
+        assert train_fields.isdisjoint(test_fields)
+
+
+def test_modality_importance_sums_to_total_mean_abs_shap():
+    """Инвариант агрегации §2.3.4: SHAP-вклады по модальностям суммируются
+    из |значений| и в сумме должны совпасть с суммой средних |SHAP| по ВСЕМ
+    столбцам -- это ловит и потерю/дублирование столбца при агрегации, и
+    подмену суммирования на усреднение внутри группы."""
+    df = generate_dataset(n_fields=8, n_years=3)
+    model = train_model(df, modalities=DEFAULT_MODALITIES)
+    X = select_modalities(df, DEFAULT_MODALITIES)
+
+    shap_values = explain_predictions(model, X)
+    total_mean_abs = float(np.abs(shap_values.values).mean(axis=0).sum())
+
+    importance = modality_importance(model, X)
+
+    assert set(importance.keys()) == set(DEFAULT_MODALITIES)
+    assert sum(importance.values()) == pytest.approx(total_mean_abs)
 
 
 def test_shap_importance_ranks_dominant_modality_highest():
