@@ -109,7 +109,12 @@ def resolve_entity_mention(onto, mention_text, target_class_name, threshold=0.82
     for individual in target_class.instances():
         candidates = [getattr(individual, name_attr) or ""]
         candidates += [str(s) for s in individual.regionalnoe_nazvanie]
-        score = max(_similarity(mention_text, c) for c in candidates if c)
+        candidates = [c for c in candidates if c]
+        if not candidates:
+            # запись без названия и без синонимов (неполные данные) -- нечего
+            # сравнивать, пропускаем, а не падаем на max() пустой последовательности
+            continue
+        score = max(_similarity(mention_text, c) for c in candidates)
         if score > best_score:
             best_match, best_score = individual, score
 

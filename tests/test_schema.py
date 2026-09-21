@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ds_ontology.integration import (  # noqa: E402
+    _similarity,
     assert_agro_priem,
     assert_soil_reading,
     assert_weather_event,
@@ -160,6 +161,52 @@ def test_lambda_resolves_regional_synonym():
 
     no_match = resolve_entity_mention(onto, "картофель", "Kultura")
     assert no_match is None
+
+
+def test_resolve_entity_mention_skips_individuals_without_name_or_synonyms():
+    """Регрессия: экземпляр без названия и без зарегистрированных синонимов
+    (неполные данные) не должен приводить к падению resolve_entity_mention на
+    max() пустой последовательности -- такой экземпляр должен просто
+    пропускаться при поиске совпадений, а не прерывать работу lambda."""
+    onto = build_schema()
+    onto.Kultura()  # nazvanie_kultury не задано, regionalnoe_nazvanie пусто
+    complete = onto.Kultura()
+    complete.nazvanie_kultury = "Пшеница озимая"
+
+    match = resolve_entity_mention(onto, "Пшеница озимая", "Kultura")
+    assert match is complete
+
+
+def test_resolve_entity_mention_returns_none_without_raising_when_no_candidates():
+    """Регрессия: если вообще ни у одного экземпляра класса нет ни названия,
+    ни синонимов, lambda должна вернуть None, а не выбросить исключение."""
+    onto = build_schema()
+    onto.Kultura()  # единственный экземпляр -- без названия и без синонимов
+
+    assert resolve_entity_mention(onto, "любая культура", "Kultura") is None
+
+
+def test_lambda_threshold_boundary_is_inclusive():
+    """Граничное значение порога сходства: сравнение score > best_score внутри
+    цикла отбирает лучший экземпляр независимо от порога, а финальное решение
+    (best_score >= threshold) должно засчитывать точное равенство порогу как
+    совпадение и отвергать значение сколь угодно выше него (обратный порядок:
+    чем выше threshold, тем сходство должно быть больше, чтобы пройти)."""
+    onto = build_schema()
+    kultura = onto.Kultura()
+    kultura.nazvanie_kultury = "рожь"
+    mention = "рож"
+    score = _similarity(mention, "рожь")
+    assert 0.0 < score < 1.0  # неточное совпадение, есть что сравнивать на границе
+
+    # порог ровно равен фактическому сходству -- должно засчитаться (>=)
+    assert resolve_entity_mention(onto, mention, "Kultura", threshold=score) is kultura
+
+    # порог чуть ниже фактического сходства -- тем более должно засчитаться
+    assert resolve_entity_mention(onto, mention, "Kultura", threshold=score - 1e-9) is kultura
+
+    # порог чуть выше фактического сходства -- уже не должно засчитаться
+    assert resolve_entity_mention(onto, mention, "Kultura", threshold=score + 1e-9) is None
 
 
 def test_reasoner_finds_no_inconsistency():
