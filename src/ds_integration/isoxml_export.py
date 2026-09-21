@@ -40,6 +40,13 @@ def export_task_data(
     if len(plots_df) != len(doses):
         raise ValueError(f"Число участков ({len(plots_df)}) не совпадает с числом доз ({len(doses)})")
 
+    duplicated_ids = plots_df["plot_id"][plots_df["plot_id"].duplicated()].unique().tolist()
+    if duplicated_ids:
+        # PFD/TZN получают идентификаторы вида "PFD{plot_id}"/"TZN{plot_id}" --
+        # при повторяющихся plot_id документ получил бы неуникальные ID,
+        # что нарушает требование ISO 11783-10 к уникальности идентификаторов.
+        raise ValueError(f"Повторяющиеся plot_id во входных данных: {duplicated_ids}")
+
     root = ET.Element(
         "ISO11783_TaskData",
         VersionMajor="4",
@@ -65,7 +72,9 @@ def export_task_data(
         _polygon_element(pfd, polygon)
 
         tzn = ET.SubElement(tsk, "TZN", A=f"TZN{plot_id}", B=f"Зона {plot_id}", D=f"PFD{plot_id}")
-        ET.SubElement(tzn, "PDV", A=DDI_APPLICATION_RATE, B=f"{dose:.3f}", D="PDT1")
+        # C -- ProductIdRef (не D, который в ISO 11783-10 -- DeviceElementIdRef
+        # и не должен указывать на продукт).
+        ET.SubElement(tzn, "PDV", A=DDI_APPLICATION_RATE, B=f"{dose:.3f}", C="PDT1")
         _polygon_element(tzn, polygon, polygon_type="4")  # 4 = Treatment Zone, ISO 11783-10
 
     ET.indent(root, space="  ")

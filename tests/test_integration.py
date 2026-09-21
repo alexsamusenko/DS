@@ -53,6 +53,32 @@ def test_export_rejects_mismatched_lengths():
         export_task_data(plots, doses)
 
 
+def test_export_rejects_duplicate_plot_ids():
+    """Регрессия: повторяющиеся plot_id дают неуникальные ID PFD/TZN в
+    выходном документе, что нарушает требование ISO 11783-10 к уникальности
+    идентификаторов -- такой ввод должен быть отклонён явной ошибкой."""
+    import pandas as pd
+
+    plots = pd.DataFrame({"plot_id": [1, 2, 2], "area": [1.0, 2.0, 3.0]})
+    doses = np.array([10.0, 20.0, 30.0])
+
+    with pytest.raises(ValueError):
+        export_task_data(plots, doses)
+
+
+def test_export_pdv_references_product_via_correct_attribute():
+    """Регрессия: ProductIdRef у PDV должен передаваться атрибутом C, а не D
+    (D в ISO 11783-10 -- DeviceElementIdRef и не может указывать на продукт)."""
+    plots = generate_plots(n_plots=1)
+    doses = np.array([5.0])
+
+    root = ET.fromstring(export_task_data(plots, doses))
+
+    pdv = root.find("TSK/TZN/PDV")
+    assert pdv.get("C") == "PDT1"
+    assert pdv.get("D") is None
+
+
 def test_export_customer_farm_task_names_are_applied():
     plots = generate_plots(n_plots=1)
     doses = np.array([5.0])
