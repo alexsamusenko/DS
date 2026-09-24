@@ -1,4 +1,4 @@
-"""Функция прибыли участка, §2.4.1."""
+"""Функция прибыли участка."""
 
 import numpy as np
 
@@ -11,7 +11,7 @@ def profit(baseline, R, s, d, price_yield, price_fert):
 
 
 def profit_multi(baseline, R, s, d, price_yield, price_fert):
-    """Многокомпонентная прибыль, §2.4.8: Profit(d) = p_Y*Y(d) - sum_j p_j*d_j.
+    """Многокомпонентная прибыль: Profit(d) = p_Y*Y(d) - sum_j p_j*d_j.
 
     d, s : (J,) для одного участка или (K, J); price_fert : (J,) -- цена по видам удобрений.
     """

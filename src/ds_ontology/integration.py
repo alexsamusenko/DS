@@ -1,10 +1,10 @@
-"""Функция семантической интеграции mu = phi (union) lambda, §2.1.4.
+"""Функция семантической интеграции mu = phi (union) lambda.
 
 phi_i: структурные источники (сенсоры, лабораторные анализы, агроприёмы) --
 данные попадают в граф напрямую по известной схеме источника.
 
 lambda: неструктурный источник (текстовое упоминание) -- сущность
-связывается с существующим экземпляром или порождает новый (§2.1.4-2.1.5).
+связывается с существующим экземпляром или порождает новый.
 
 Каждая функция принимает онтологию, собранную build_schema(), и возвращает
 или обновляет экземпляр (I, ABox), не трогая TBox (C, R_O, R_D, Ax).
@@ -14,7 +14,7 @@ from difflib import SequenceMatcher
 
 
 def get_or_create_pole(onto, pole_id, geometriya=None, ploschad=None, region=None):
-    """Найти или создать экземпляр Поле — якорную сущность (§2.1.3)."""
+    """Найти или создать экземпляр Поле — якорную сущность."""
     Pole = onto.Pole
     for individual in Pole.instances():
         if individual.pole_id == pole_id:
@@ -50,7 +50,7 @@ def get_or_create_istochnik(onto, tip, format_istochnika=None, dostovernost=None
 def assert_soil_reading(onto, pole, tip_pokazatelya, znachenie, data_izmereniya, edinitsa_izmereniya, istochnik):
     """phi_i для показаний почвенных сенсоров/лабораторных анализов.
 
-    Реализует триплет (Pole_i, harakterizuetsya, PokazatelPochvy) из §2.1.4.
+    Реализует триплет (Pole_i, harakterizuetsya, PokazatelPochvy).
     """
     pokazatel = onto.PokazatelPochvy()
     pokazatel.tip_pokazatelya = tip_pokazatelya
@@ -90,12 +90,12 @@ def _similarity(a, b):
 def resolve_entity_mention(onto, mention_text, target_class_name, threshold=0.82):
     """lambda: связать текстовое упоминание сущности с существующим экземпляром.
 
-    Базовая (baseline) реализация resolve()/Syn(c) из §2.1.5 -- сравнение по
+    Базовая (baseline) реализация resolve()/Syn(c) -- сравнение по
     строковому сходству названия и по аннотациям regionalnoe_nazvanie.
     Возвращает существующий экземпляр либо None, если совпадений не найдено
     (в таком случае вызывающий код создаёт новый экземпляр -- см. build.py).
     Реализация -- отправная точка; в проде заменяется эмбеддинговым сходством
-    и ограничениями графового соседства, как оговорено в §2.1.4.
+    и ограничениями графового соседства.
     """
     target_class = getattr(onto, target_class_name)
     name_attr = {

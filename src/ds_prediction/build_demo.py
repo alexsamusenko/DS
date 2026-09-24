@@ -1,6 +1,6 @@
 """Демонстрация: мультимодальный прогноз против одномодальных + простой
-базовой линии (§10.4) + SHAP по модальностям + оценка разброса по нескольким
-независимым перегенерациям данных (§10.6) + вычислительная стоимость (§10.7).
+базовой линии + SHAP по модальностям + оценка разброса по нескольким
+независимым перегенерациям данных + вычислительная стоимость.
 
 Запуск: PYTHONPATH=src python3 -m ds_prediction.build_demo
 """
@@ -24,7 +24,7 @@ from ds_prediction.synthetic import generate_dataset
 def run_demo():
     df = generate_dataset()
 
-    print("Прогноз урожайности -- сравнение по модальностям (§2.3.6)")
+    print("Прогноз урожайности -- сравнение по модальностям")
     print(f"{'Набор модальностей':<30}{'RMSE (GroupKFold по полю)':>28}")
 
     rmse_full = evaluate_grouped_cv(df, modalities=DEFAULT_MODALITIES, model_factory=make_model)
@@ -44,18 +44,18 @@ def run_demo():
     X = select_modalities(df, DEFAULT_MODALITIES)
     importance = modality_importance(model, X)
 
-    print("Вклад модальностей в прогноз (агрегированный |SHAP|, §2.3.4)")
+    print("Вклад модальностей в прогноз (агрегированный |SHAP|)")
     for modality, value in sorted(importance.items(), key=lambda kv: -kv[1]):
         print(f"  {modality:<10}{value:>10.3f}")
 
     for m in DEFAULT_MODALITIES:
-        assert rmse_full <= rmse_without[m] + 1e-9, f"Мультимодальная модель не должна уступать модели без модальности {m!r} (§2.3.6)"
+        assert rmse_full <= rmse_without[m] + 1e-9, f"Мультимодальная модель не должна уступать модели без модальности {m!r}"
     # Внимание: превосходство ансамбля над линейной базовой линией НЕ проверяется
     # утверждением (assert) -- в отличие от свойства ablation выше, оно не следует
     # из построения алгоритма и является эмпирическим фактом, который на данном
-    # синтетическом наборе (почти линейный по построению generate_dataset,
-    # §2.3.7) НЕ выполняется: rmse_baseline < rmse_full. Это честно
-    # зафиксировано и обсуждается в главе 3 (§3.3), а не скрывается.
+    # синтетическом наборе (почти линейный по построению generate_dataset)
+    # может не выполняться: rmse_baseline < rmse_full. Это фиксируется и
+    # обсуждается открыто, а не скрывается.
 
     return rmse_full, rmse_baseline, rmse_without, importance
 
@@ -63,7 +63,7 @@ def run_demo():
 def run_variability(n_repeats=5, seeds=(11, 12, 13, 14, 15)):
     """Оценить разброс RMSE по нескольким независимым перегенерациям набора
     данных (разные seed generate_dataset), а не по одной фиксированной
-    выборке -- статистическая корректность §10.6: точечная оценка без
+    выборке -- для статистической корректности: точечная оценка без
     указания разброса недостаточна для содержательного вывода о превосходстве
     метода.
     """
@@ -87,7 +87,7 @@ def run_variability(n_repeats=5, seeds=(11, 12, 13, 14, 15)):
 
 
 def run_cost(n_repeats_train=5, n_predict_calls=200):
-    """Измерить вычислительную стоимость модели L4 (§10.7): время обучения
+    """Измерить вычислительную стоимость модели L4: время обучения
     на полном наборе и латентность единичного прогноза -- на процессоре,
     без GPU, без специальной оптимизации инференса (ONNX и т.п.), поскольку
     именно так модель обслуживает запросы уровня L6 в текущей реализации.
@@ -120,7 +120,7 @@ def run_cost(n_repeats_train=5, n_predict_calls=200):
     predict_times_ms = np.array(predict_times) * 1000
     train_times = np.array(train_times)
 
-    print(f"\nВычислительная стоимость модели L4 (§10.7), {n_repeats_train} обучений, {n_predict_calls} прогнозов, CPU без GPU")
+    print(f"\nВычислительная стоимость модели L4, {n_repeats_train} обучений, {n_predict_calls} прогнозов, CPU без GPU")
     print(f"Обучение на {len(X)} наблюдениях: {train_times.mean() * 1000:.1f} ± {train_times.std(ddof=1) * 1000:.1f} мс")
     print(f"Единичный прогноз: {np.mean(predict_times_ms):.2f} мс (p50={np.percentile(predict_times_ms, 50):.2f}, p95={np.percentile(predict_times_ms, 95):.2f})")
     print(f"Пропускная способность (последовательные единичные вызовы): {1000 / np.mean(predict_times_ms):.0f} прогнозов/с")
@@ -129,11 +129,10 @@ def run_cost(n_repeats_train=5, n_predict_calls=200):
 
 
 def run_sensitivity_sample_size(sizes=(15, 30, 60, 120, 240), n_years=5, seed=11):
-    """Анализ чувствительности (§10.5): как соотношение RMSE ансамбля и
-    простой базовой линии (§3.3.2) меняется с ростом объёма обучающих
-    данных -- проверка гипотезы о том, что отставание ансамбля на 150
-    наблюдениях объясняется малым размером выборки, а не структурным
-    недостатком модели.
+    """Анализ чувствительности: как соотношение RMSE ансамбля и простой
+    базовой линии меняется с ростом объёма обучающих данных -- проверка
+    гипотезы о том, что отставание ансамбля на 150 наблюдениях объясняется
+    малым размером выборки, а не структурным недостатком модели.
     """
     rows = []
     for n_fields in sizes:
@@ -143,7 +142,7 @@ def run_sensitivity_sample_size(sizes=(15, 30, 60, 120, 240), n_years=5, seed=11
         base = evaluate_grouped_cv(df, modalities=DEFAULT_MODALITIES, model_factory=make_baseline_model, n_splits=n_splits)
         rows.append({"n_fields": n_fields, "n_obs": n_fields * n_years, "gbm": gbm, "baseline": base, "ratio": gbm / base})
 
-    print(f"\nЧувствительность соотношения RMSE(GBM)/RMSE(база) к объёму данных (§10.5)")
+    print(f"\nЧувствительность соотношения RMSE(GBM)/RMSE(база) к объёму данных")
     print(f"{'n_fields':>8}{'n_obs':>8}{'GBM':>10}{'база':>10}{'GBM/база':>12}")
     for r in rows:
         print(f"{r['n_fields']:>8}{r['n_obs']:>8}{r['gbm']:>10.3f}{r['baseline']:>10.3f}{r['ratio']:>12.3f}")

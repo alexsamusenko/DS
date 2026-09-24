@@ -1,4 +1,4 @@
-"""Демонстрация: экспорт результата L5 в ISO 11783-10 Task Data (§2.6.3).
+"""Демонстрация: экспорт результата L5 в ISO 11783-10 Task Data.
 
 Запуск: PYTHONPATH=src python3 -m ds_integration.build_demo
 """
@@ -27,7 +27,7 @@ def run_demo():
     output_path = output_dir / "TASKDATA.xml"
     output_path.write_text(xml_text, encoding="utf-8")
 
-    print("Экспорт карты-задания в ISO 11783-10 Task Data (§2.6.3)")
+    print("Экспорт карты-задания в ISO 11783-10 Task Data")
     print(f"Участков: {len(plots)}, суммарный бюджет: {budget:.1f} кг")
     print(f"Сохранено: {output_path} ({len(xml_text)} байт)")
     print()

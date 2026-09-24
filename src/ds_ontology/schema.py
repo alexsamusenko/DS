@@ -1,7 +1,7 @@
 """OWL 2 DL schema for the DS ontology.
 
-Реализует формальную модель из docs/chapter2/ontology_model.md (§2.1.3-2.1.4):
-классы C, объектные отношения R_O, атрибуты (data properties) R_D и аксиомы Ax.
+Реализует формальную модель предметной онтологии: классы C, объектные
+отношения R_O, атрибуты (data properties) R_D и аксиомы Ax.
 """
 
 from owlready2 import (
@@ -27,7 +27,7 @@ def build_schema(world=None):
     with onto:
 
         class Pole(Thing):
-            """Поле — якорная сущность (anchor entity), §2.1.3."""
+            """Поле — якорная сущность (anchor entity)."""
 
         class Kultura(Thing):
             """Культура — расширяет верхнеуровневые концепты AGROVOC / Crop Ontology."""
@@ -72,7 +72,7 @@ def build_schema(world=None):
         class opisan_v(AgroPriem >> Istochnik, FunctionalProperty):
             """АгроПриём -> Источник."""
 
-        # ---- R_D: атрибуты (data properties), таблица §2.1.3 ----
+        # ---- R_D: атрибуты (data properties) ----
 
         class pole_id(Pole >> str, FunctionalProperty):
             pass
@@ -140,7 +140,7 @@ def build_schema(world=None):
         class dostovernost(Istochnik >> float, FunctionalProperty):
             pass
 
-        # ---- Syn(c): региональные/устаревшие названия, §2.1.5 ----
+        # ---- Syn(c): региональные/устаревшие названия ----
 
         class regionalnoe_nazvanie(AnnotationProperty):
             """Аннотация-синоним: региональный или устаревший вариант термина (ru)."""

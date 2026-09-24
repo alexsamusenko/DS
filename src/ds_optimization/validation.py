@@ -1,4 +1,4 @@
-"""Валидация входных параметров оптимизации, §2.4.
+"""Валидация входных параметров оптимизации.
 
 Проверяется на границе публичного API (optimize_unconstrained,
 optimize_with_budget), по аналогии с src/ds_preprocessing/validation.py.
@@ -48,7 +48,7 @@ def validate_budget(plots, budget, dose_min):
 
 
 def validate_plots_multi(plots, nutrient_names, dose_min, dose_max, price_yield, price_fert):
-    """Валидация для многокомпонентного внесения (§2.4.8) -- аналог validate_plots,
+    """Валидация для многокомпонентного внесения -- аналог validate_plots,
     но s задаётся отдельной колонкой s_<nutrient> на каждый вид удобрения."""
     s_columns = [f"s_{n}" for n in nutrient_names]
     required = ["baseline", "R", "area"] + s_columns

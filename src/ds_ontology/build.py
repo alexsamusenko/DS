@@ -64,7 +64,7 @@ def run_demo():
     )
 
     # lambda: текстовое упоминание "озимка" должно разрешиться в уже созданный
-    # экземпляр Kultura через regionalnoe_nazvanie (§2.1.5), а не породить дубликат
+    # экземпляр Kultura через regionalnoe_nazvanie, а не породить дубликат
     matched = resolve_entity_mention(onto, "озимка", "Kultura")
     print("resolve_entity_mention('озимка') ->", matched, "(ожидается тот же экземпляр, что и Пшеница озимая)")
     assert matched is kultura, "lambda не нашла существующий экземпляр по синониму"

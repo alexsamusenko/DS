@@ -1,4 +1,4 @@
-"""Ансамблевая модель и групповая кросс-валидация по полю, §2.3.3, §2.3.5."""
+"""Ансамблевая модель и групповая кросс-валидация по полю."""
 
 import numpy as np
 from sklearn.ensemble import GradientBoostingRegressor
@@ -15,7 +15,7 @@ def make_model(random_state=0):
 
 
 def make_baseline_model(random_state=0):
-    """Простая базовая линия (§10.4 спецификации): обычная линейная регрессия
+    """Простая базовая линия: обычная линейная регрессия
     по тем же признакам, без учёта взаимодействий и нелинейностей -- точка
     сравнения для содержательной оценки прироста от ансамблевой модели, а не
     только внутреннего сравнения вариантов одной и той же модели (ablation).
@@ -25,7 +25,7 @@ def make_baseline_model(random_state=0):
 
 
 def train_model(df, modalities=DEFAULT_MODALITIES, random_state=0, model_factory=make_model):
-    """Обучить модель F(x) = Y_hat на всех переданных данных (§2.3.3)."""
+    """Обучить модель F(x) = Y_hat на всех переданных данных."""
     X = select_modalities(df, modalities)
     y = df["yield"].to_numpy()
     model = model_factory(random_state=random_state)
@@ -34,13 +34,13 @@ def train_model(df, modalities=DEFAULT_MODALITIES, random_state=0, model_factory
 
 
 def evaluate_grouped_cv(df, modalities=DEFAULT_MODALITIES, n_splits=5, random_state=0, model_factory=make_model):
-    """RMSE по GroupKFold с группой field_id (§2.3.5).
+    """RMSE по GroupKFold с группой field_id.
 
     Именно группировка по полю, а не случайное разбиение, проверяет
-    обобщение модели на НЕвиденные поля -- см. обоснование в §2.3.5.
+    обобщение модели на НЕвиденные поля.
     model_factory позволяет прогнать ту же схему валидации для другой модели
     (см. make_baseline_model) -- используется для честного сравнения с
-    простой базовой линией на идентичных разбиениях (§10.4).
+    простой базовой линией на идентичных разбиениях.
     """
     X = select_modalities(df, modalities)
     y = df["yield"].to_numpy()

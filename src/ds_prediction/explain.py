@@ -1,4 +1,4 @@
-"""SHAP-интерпретация и агрегация вклада по модальностям, §2.3.4."""
+"""SHAP-интерпретация и агрегация вклада по модальностям."""
 
 import numpy as np
 import shap
@@ -13,7 +13,7 @@ def explain_predictions(model, X):
 
 
 def modality_importance(model, X):
-    """Средний |SHAP| по признакам, агрегированный по модальности (Phi_k, §2.3.4)."""
+    """Средний |SHAP| по признакам, агрегированный по модальности (Phi_k)."""
     shap_values = explain_predictions(model, X)
     mean_abs = np.abs(shap_values.values).mean(axis=0)
 

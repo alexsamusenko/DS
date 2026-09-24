@@ -1,4 +1,4 @@
-"""Оптимизация доз по участкам: без бюджета (§2.4.3) и с бюджетом (§2.4.4)."""
+"""Оптимизация доз по участкам: без бюджета и с бюджетом."""
 
 import numpy as np
 from scipy.optimize import brentq, minimize
@@ -29,7 +29,7 @@ def _dose_for_shadow_price(R, s, shadow_price, price_yield, dose_min, dose_max):
 
 
 def optimize_unconstrained(plots, dose_min, dose_max, price_yield, price_fert):
-    """Оптимум по каждому участку независимо (§2.4.3). Возвращает np.ndarray доз."""
+    """Оптимум по каждому участку независимо. Возвращает np.ndarray доз."""
     validate_plots(plots, dose_min, dose_max, price_yield, price_fert)
 
     doses = np.array([_dose_for_shadow_price(row.R, row.s, price_fert, price_yield, dose_min, dose_max) for row in plots.itertuples()])
@@ -44,7 +44,7 @@ def _total_dose_at_lambda(plots, lam, price_yield, price_fert, dose_min, dose_ma
 
 
 def optimize_with_budget(plots, budget, dose_min, dose_max, price_yield, price_fert):
-    """Оптимум с ограничением суммарного расхода (§2.4.4, метод Лагранжа).
+    """Оптимум с ограничением суммарного расхода (метод Лагранжа).
 
     Возвращает np.ndarray доз, удовлетворяющих sum(area_k * d_k) <= budget.
     """
@@ -71,8 +71,8 @@ def optimize_with_budget(plots, budget, dose_min, dose_max, price_yield, price_f
 
 
 def optimize_unconstrained_multi(plots, nutrient_names, dose_min, dose_max, price_yield, price_fert):
-    """Оптимум по каждому участку независимо для J>1 видов удобрений (§2.4.8,
-    закон Митчерлиха-Бауле). В отличие от optimize_unconstrained, решается
+    """Оптимум по каждому участку независимо для J>1 видов удобрений (закон
+    Митчерлиха-Бауле). В отличие от optimize_unconstrained, решается
     численно (L-BFGS-B) на каждом участке -- при J>1 произведение вогнутых по
     каждой dose_j функций не обязано быть совместно вогнутым, аналитического
     решения через условие первого порядка, как при J=1, в общем виде нет.

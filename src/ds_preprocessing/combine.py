@@ -1,4 +1,4 @@
-"""Комбинирование пространственной и временной оценок по обратной дисперсии, §2.2.5."""
+"""Комбинирование пространственной и временной оценок по обратной дисперсии."""
 
 import numpy as np
 
@@ -9,14 +9,14 @@ from .validation import validate_inputs
 
 
 def fill_gaps(coords, times, X, mask_observed, drop_anomalies=True):
-    """Восстановить пропуски в X комбинированным алгоритмом (§2.2).
+    """Восстановить пропуски в X комбинированным алгоритмом.
 
     coords : np.ndarray (M, 2) -- координаты точек.
     times : np.ndarray (T,) -- числовая временная шкала.
     X : np.ndarray (M, T) -- наблюдаемые значения (произвольные там, где
         mask_observed=False -- они игнорируются).
     mask_observed : np.ndarray (M, T), bool.
-    drop_anomalies : если True, значения, признанные аномалиями (§2.2.2),
+    drop_anomalies : если True, значения, признанные аномалиями,
         исключаются из наблюдаемых перед восстановлением.
 
     Поднимает ds_preprocessing.validation.DataValidationError, если формы,

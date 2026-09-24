@@ -1,4 +1,4 @@
-"""L7 -- слой интеграции с внешними ИС (docs/chapter2/integration_model.md, §2.6)."""
+"""L7 -- слой интеграции с внешними информационными системами."""
 
 from .isoxml_export import export_task_data
 
