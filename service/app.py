@@ -25,7 +25,7 @@ from . import config
 from .auth import require_api_key
 from .config import CORS_ORIGINS, PREDICTION_MODEL_PATH
 from .logging_config import configure_logging, log_requests, logger
-from .routers import datasets, integration, optimization, pipeline, prediction, preprocessing, training_stats
+from .routers import datasets, integration, optimization, pipeline, prediction, preprocessing, training_stats, workbench
 
 
 @asynccontextmanager
@@ -106,6 +106,7 @@ app.include_router(training_stats.router, dependencies=_protected)
 app.include_router(datasets.router, dependencies=_protected)
 app.include_router(integration.router, dependencies=_protected)
 app.include_router(pipeline.router, dependencies=_protected)
+app.include_router(workbench.router, dependencies=_protected)
 
 
 @app.get("/health", tags=["служебное"], summary="Liveness: процесс жив и отвечает на запросы")
