@@ -209,3 +209,19 @@ export function runPipeline(payload: Record<string, unknown>): Promise<unknown> 
     body: JSON.stringify(payload),
   })
 }
+
+export function listWorkbenchFiles(): Promise<{ files: WorkbenchUpload[]; total_returned: number }> {
+  return request<{ files: WorkbenchUpload[]; total_returned: number }>('/workbench/files')
+}
+
+export async function downloadWorkbenchFile(file: WorkbenchUpload): Promise<void> {
+  const response = await fetch(`${API_BASE}/workbench/files/${encodeURIComponent(file.file_id)}/download`, { headers: authHeaders() })
+  if (!response.ok) throw new Error(`Download failed: ${response.status}`)
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = file.filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
