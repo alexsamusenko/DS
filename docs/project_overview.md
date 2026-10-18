@@ -38,8 +38,6 @@ from ds_ontology.integration import get_or_create_pole, assert_soil_reading, get
 onto = build_schema()
 pole = get_or_create_pole(onto, pole_id="7", region="Ростовская область")
 istochnik = get_or_create_istochnik(onto, tip="IoT-датчик почвы")
-assert_soil_reading(onto, pole, tip_pokazatelya="влажность почвы", znachenie=27.4,
-                     data_izmereniya="2026-05-14", edinitsa_izmereniya="%", istochnik=istochnik)
 ```
 
 ---
@@ -104,8 +102,6 @@ importance = modality_importance(model, select_modalities(df, MODALITY_COLUMNS.k
 **Пример использования:**
 ```python
 from ds_optimization import optimize_with_budget
-doses = optimize_with_budget(plots_df, budget=1000.0, dose_min=0, dose_max=150,
-                              price_yield=1300.0, price_fert=50.0)
 ```
 
 ---
