@@ -103,3 +103,39 @@ def test_non_synthetic_optimizer_requires_validated_response_evidence():
     result = _optimization_stage(request)
     assert result["status"] == "blocked"
     assert result["reason"] == "RESPONSE_MODEL_NOT_VALIDATED"
+
+
+
+def test_pipeline_rejects_malformed_gapfill_matrix():
+    request = base_request(
+        observations=[{
+            "observation_id": "o1",
+            "field_id": "A",
+            "variable": "soil_moisture_mean",
+            "value": None,
+            "unit": "%",
+            "observed_at": "2026-05-01T12:00:00+03:00",
+            "source_id": "synthetic-test",
+        }],
+        gapfill={
+            "field_ids": ["A"],
+            "coords": [[0.0, 0.0]],
+            "times": [0.0, 1.0],
+            "values": [[0.0]],
+            "mask_observed": [[False, True]],
+            "observation_cells": {"o1": [0, 0]},
+        },
+    )
+    with pytest.raises(ValueError, match="every gapfill.values row"):
+        PipelineRunRequest.model_validate(request)
+
+
+def test_pipeline_rejects_nonfinite_response_parameters():
+    request = base_request(fields=[{
+        "field_id": "A",
+        "plot_id": 1,
+        "area_ha": 10,
+        "response_parameters": {"baseline": 40, "R": float("nan"), "s": 60},
+    }])
+    with pytest.raises(ValueError, match="response_parameters values must be finite"):
+        PipelineRunRequest.model_validate(request)
