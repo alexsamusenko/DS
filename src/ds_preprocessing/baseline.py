@@ -30,8 +30,5 @@ def naive_interpolation_baseline(times, X, mask_observed):
         missing_idx = np.where(~mask_observed[m])[0]
         if observed_idx.size == 0 or missing_idx.size == 0:
             continue
-        estimate[m, missing_idx] = np.interp(
-            times[missing_idx], times[observed_idx], X[m, observed_idx]
-        )
 
     return estimate
