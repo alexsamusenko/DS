@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir -e ".[dev,api]"
 # Непривилегированный пользователь -- контейнер (в т.ч. JRE-ризонер HermiT,
 # запускаемый owlready2) не должен работать от root без необходимости.
 RUN useradd --create-home --uid 1000 appuser \
-    && mkdir -p /app/build /app/data \
+    && mkdir -p /app/build /app/data /app/workbench_data \
     && chown -R appuser:appuser /app
 USER appuser
 
