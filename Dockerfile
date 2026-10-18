@@ -12,7 +12,7 @@ FROM python:3.11-slim
 # default-jre-headless -- нужен ризонеру HermiT (owlready2 sync_reasoner) для
 # проверки консистентности Ax, см. docs/chapter2/ontology_model.md §2.1.1
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends default-jre-headless \
+    && apt-get install -y --no-install-recommends default-jre-headless tesseract-ocr tesseract-ocr-rus tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
