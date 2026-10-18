@@ -56,6 +56,9 @@ api = [
     "fastapi==0.141.1",
     "uvicorn[standard]==0.52.4",
     "python-multipart==0.0.32",
+    "pypdf>=5,<7",
+    "Pillow>=11,<13",
+    "pytesseract>=0.3.13,<1",
 ]
 
 [tool.setuptools.packages.find]
