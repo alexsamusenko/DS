@@ -20,7 +20,7 @@ from service import workbench_storage
 router = APIRouter(prefix="/workbench", tags=["АПК: загрузка исходных данных"])
 ROOT = Path(os.environ.get("DS_WORKBENCH_DIR", "build/workbench_uploads"))
 MAX_FILE_BYTES = 20 * 1024 * 1024
-EXTENSIONS = {".csv", ".tsv", ".xlsx", ".xls", ".json", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".txt", ".docx", ".doc", ".odt", ".ods", ".xlsm", ".heic", ".webp", ".geojson", ".kml", ".gpx", ".gml", ".xml", ".tif", ".tiff", ".zip", ".shp", ".dbf", ".shx", ".prj", ".gpkg", ".las", ".log"}
+EXTENSIONS = {".csv", ".tsv", ".xlsx", ".xls", ".json", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".txt", ".docx", ".doc", ".odt", ".ods", ".xlsm", ".heic", ".webp", ".geojson", ".kml", ".gpx", ".gml", ".xml", ".zip", ".shp", ".dbf", ".shx", ".prj", ".gpkg", ".las", ".log"}
 EXT_TYPES = {
     ".csv": "table", ".tsv": "table", ".xlsx": "table", ".xls": "table", ".xlsm": "table", ".ods": "table",
     ".json": "structured", ".xml": "structured", ".geojson": "geospatial", ".kml": "geospatial", ".gpx": "geospatial", ".gml": "geospatial", ".shp": "geospatial", ".shx": "geospatial", ".dbf": "geospatial", ".prj": "geospatial", ".gpkg": "geospatial", ".las": "geospatial", ".pdf": "document", ".docx": "document", ".doc": "document", ".odt": "document",
