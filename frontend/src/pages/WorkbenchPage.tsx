@@ -87,12 +87,12 @@ export default function WorkbenchPage() {
         <h2>1. Исходные материалы хозяйства</h2>
         <div className="workbench-drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void addFiles(event.dataTransfer.files) }}>
           <p><strong>Перетащите файлы сюда</strong> или выберите их на компьютере</p>
-          <p className="hint">CSV, TSV, Excel, JSON, PDF, DOCX, ODT, TXT, JPG, PNG, TIFF · до 20 МиБ на файл</p>
-          <input aria-label="Исходные файлы" ref={picker} type="file" multiple accept=".csv,.tsv,.xlsx,.xls,.json,.pdf,.docx,.odt,.txt,.jpg,.jpeg,.png,.tif,.tiff" onChange={(event) => { void addFiles(event.target.files) }} />
+          <p className="hint">Excel, Word, PDF, фото рукописей, изображения, CSV, JSON, XML, GIS, телеметрия и ZIP · до 20 МиБ на файл</p>
+          <input aria-label="Исходные файлы" ref={picker} type="file" multiple accept=".csv,.tsv,.xlsx,.xls,.xlsm,.ods,.json,.geojson,.xml,.pdf,.doc,.docx,.odt,.txt,.jpg,.jpeg,.png,.tif,.tiff,.heic,.webp,.zip,.kml,.gpx,.gml,.shp,.shx,.dbf,.prj,.gpkg,.las,.log" onChange={(event) => { void addFiles(event.target.files) }} />
           {uploading && <p role="status">Приём файлов…</p>}
         </div>
         {uploads.length > 0 && <div style={{ overflowX: 'auto' }}><table><thead><tr><th>Файл</th><th>Тип</th><th>Размер</th><th>Статус</th></tr></thead><tbody>{uploads.map((f) => <tr key={f.file_id}><td><strong>{f.filename}</strong><details><summary className="hint">Предпросмотр и контрольная сумма</summary><pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{JSON.stringify(f.preview, null, 2)}</pre><small>SHA-256: {f.sha256}</small></details></td><td>{f.category}</td><td>{(f.size_bytes / 1024).toFixed(1)} КБ</td><td>Зарегистрирован, не проверен</td></tr>)}</tbody></table></div>}
-        <p className="hint">CSV/TSV и JSON: предварительный просмотр. Excel, документы и изображения: сохранение без OCR, извлечения таблиц или агрономической интерпретации. Загрузка не запускает обучение.</p>
+        <p className="hint">CSV/TSV и JSON: предварительный просмотр. Excel, документы, рукописи, геоданные и изображения: сохранение без OCR, извлечения таблиц или агрономической интерпретации. Загрузка не запускает обучение.</p>
       </div>
 
       <div className="card">
