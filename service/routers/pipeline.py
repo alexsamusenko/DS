@@ -120,8 +120,36 @@ class PipelineRunRequest(BaseModel):
             raise ValueError(f"observations reference unknown fields: {unknown}")
         if len({item.observation_id for item in self.observations}) != len(self.observations):
             raise ValueError("observation_id values must be unique")
-        if self.gapfill is not None and len(self.gapfill.field_ids) != len(self.gapfill.coords):
-            raise ValueError("gapfill.field_ids and gapfill.coords must have the same length")
+        for item in self.fields:
+            for label, mapping in (("features", item.features), ("response_parameters", item.response_parameters)):
+                if mapping is not None and any(not np.isfinite(value) for value in mapping.values()):
+                    raise ValueError(f"{label} values must be finite for field {item.field_id}")
+        if self.gapfill is not None:
+            if len(self.gapfill.field_ids) != len(self.gapfill.coords):
+                raise ValueError("gapfill.field_ids and gapfill.coords must have the same length")
+            if len(self.gapfill.field_ids) != len(set(self.gapfill.field_ids)):
+                raise ValueError("gapfill.field_ids must be unique")
+            if len(self.gapfill.values) != len(self.gapfill.field_ids):
+                raise ValueError("gapfill.values row count must match gapfill.field_ids")
+            if len(self.gapfill.mask_observed) != len(self.gapfill.field_ids):
+                raise ValueError("gapfill.mask_observed row count must match gapfill.field_ids")
+            time_count = len(self.gapfill.times)
+            if any(len(row) != time_count for row in self.gapfill.values):
+                raise ValueError("every gapfill.values row must match the number of times")
+            if any(len(row) != time_count for row in self.gapfill.mask_observed):
+                raise ValueError("every gapfill.mask_observed row must match the number of times")
+            if set(self.gapfill.field_ids) - set(ids):
+                raise ValueError("gapfill.field_ids contain unknown field IDs")
+            known_observation_ids = {obs.observation_id for obs in self.observations}
+            unknown_cell_ids = set(self.gapfill.observation_cells) - known_observation_ids
+            if unknown_cell_ids:
+                raise ValueError(f"gapfill.observation_cells references unknown observations: {sorted(unknown_cell_ids)}")
+            for observation_id, cell in self.gapfill.observation_cells.items():
+                if len(cell) != 2:
+                    raise ValueError(f"gapfill cell for {observation_id} must be [row, column]")
+                row, column = cell
+                if row < 0 or row >= len(self.gapfill.field_ids) or column < 0 or column >= time_count:
+                    raise ValueError(f"gapfill cell for {observation_id} is outside matrix bounds")
         return self
 
 
@@ -186,7 +214,11 @@ def _quality_stage(req: PipelineRunRequest) -> tuple[dict, dict[str, Any] | None
                 unresolved.append(obs.observation_id)
                 continue
             i, j = cell
-            if i < 0 or j < 0 or i >= filled.shape[0] or j >= filled.shape[1] or unrestored[i, j] or not np.isfinite(filled[i, j]):
+            if (
+                i < 0 or j < 0 or i >= filled.shape[0] or j >= filled.shape[1]
+                or payload.field_ids[i] != obs.field_id
+                or unrestored[i, j] or not np.isfinite(filled[i, j])
+            ):
                 unresolved.append(obs.observation_id)
         data = {
             "missing_or_rejected_observation_ids": [obs.observation_id for obs in missing],
