@@ -154,8 +154,14 @@ class PipelineRunRequest(BaseModel):
 
 
 def _fingerprint(payload: dict[str, Any]) -> str:
-    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str, allow_nan=False)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _json_safe_matrix(values: Any) -> list[list[float | None]]:
+    """Convert non-finite imputation outputs to JSON null rather than invalid NaN/Infinity tokens."""
+    matrix = np.asarray(values, dtype=float)
+    return [[float(value) if np.isfinite(value) else None for value in row] for row in matrix]
 
 
 def _stage(name: str, status: str, *, reason: str | None = None, data: dict | None = None, warnings: list[str] | None = None, metrics: dict | None = None) -> dict:
@@ -338,7 +344,7 @@ def create_pipeline_run(raw: dict[str, Any]) -> dict[str, Any]:
     quality, gapfill_result = _quality_stage(req)
     stages.append(quality)
     if gapfill_result is not None and quality["name"] == "gapfill":
-        quality["data"] = {**(quality.get("data") or {}), "filled_matrix": np.asarray(gapfill_result["filled"], dtype=float).tolist()}
+        quality["data"] = {**(quality.get("data") or {}), "filled_matrix": _json_safe_matrix(gapfill_result["filled"])}
 
     prediction = _prediction_stage(req) if ontology["status"] == "ok" and quality["status"] == "ok" else _stage("predict", "blocked", reason="UPSTREAM_GATE_FAILED")
     stages.append(prediction)
