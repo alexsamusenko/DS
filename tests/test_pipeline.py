@@ -150,3 +150,12 @@ def test_pipeline_route_is_registered_in_openapi():
     paths = TestClient(app).get("/openapi.json").json()["paths"]
     assert "/pipeline/runs" in paths
     assert "post" in paths["/pipeline/runs"]
+
+
+
+def test_unrestored_gapfill_cells_are_json_null():
+    import numpy as np
+
+    from service.routers.pipeline import _json_safe_matrix
+
+    assert _json_safe_matrix([[1.0, np.nan], [np.inf, 2.0]]) == [[1.0, None], [None, 2.0]]
