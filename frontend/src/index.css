@@ -251,3 +251,10 @@ code {
     0%, 100% { opacity: 1; transform: scale(1); }
   }
 }
+
+.workbench-drop { padding: 1.5rem; border: 2px dashed var(--border); border-radius: 10px; background: var(--bg); text-align: center; margin: 1rem 0; }
+.workbench-drop input[type="file"] { max-width: 100%; }
+.workbench details { margin-top: 0.5rem; }
+.workbench summary { cursor: pointer; }
+.workbench pre { font-size: 0.8rem; }
+nav.tabs { flex-wrap: wrap; }

@@ -350,6 +350,4 @@ def test_combined_beats_naive_baseline_per_trial():
         naive_error = rmse(naive_est[mask_test], X_true[mask_test])
 
         assert combined_error <= naive_error, (
-            f"seed={seed}: комбинированный метод (RMSE={combined_error:.4f}) "
-            f"хуже наивной базы (RMSE={naive_error:.4f})"
         )

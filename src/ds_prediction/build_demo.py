@@ -122,7 +122,6 @@ def run_cost(n_repeats_train=5, n_predict_calls=200):
 
     print(f"\nВычислительная стоимость модели L4, {n_repeats_train} обучений, {n_predict_calls} прогнозов, CPU без GPU")
     print(f"Обучение на {len(X)} наблюдениях: {train_times.mean() * 1000:.1f} ± {train_times.std(ddof=1) * 1000:.1f} мс")
-    print(f"Единичный прогноз: {np.mean(predict_times_ms):.2f} мс (p50={np.percentile(predict_times_ms, 50):.2f}, p95={np.percentile(predict_times_ms, 95):.2f})")
     print(f"Пропускная способность (последовательные единичные вызовы): {1000 / np.mean(predict_times_ms):.0f} прогнозов/с")
 
     return {"train_ms": train_times * 1000, "predict_ms": predict_times_ms}
@@ -142,7 +141,7 @@ def run_sensitivity_sample_size(sizes=(15, 30, 60, 120, 240), n_years=5, seed=11
         base = evaluate_grouped_cv(df, modalities=DEFAULT_MODALITIES, model_factory=make_baseline_model, n_splits=n_splits)
         rows.append({"n_fields": n_fields, "n_obs": n_fields * n_years, "gbm": gbm, "baseline": base, "ratio": gbm / base})
 
-    print(f"\nЧувствительность соотношения RMSE(GBM)/RMSE(база) к объёму данных")
+    print("\nЧувствительность соотношения RMSE(GBM)/RMSE(база) к объёму данных")
     print(f"{'n_fields':>8}{'n_obs':>8}{'GBM':>10}{'база':>10}{'GBM/база':>12}")
     for r in rows:
         print(f"{r['n_fields']:>8}{r['n_obs']:>8}{r['gbm']:>10.3f}{r['baseline']:>10.3f}{r['ratio']:>12.3f}")

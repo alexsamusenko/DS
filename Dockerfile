@@ -12,7 +12,7 @@ FROM python:3.11-slim
 # default-jre-headless -- нужен ризонеру HermiT (owlready2 sync_reasoner) для
 # проверки консистентности Ax, см. docs/chapter2/ontology_model.md §2.1.1
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends default-jre-headless \
+    && apt-get install -y --no-install-recommends default-jre-headless tesseract-ocr tesseract-ocr-rus tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir -e ".[dev,api]"
 # Непривилегированный пользователь -- контейнер (в т.ч. JRE-ризонер HermiT,
 # запускаемый owlready2) не должен работать от root без необходимости.
 RUN useradd --create-home --uid 1000 appuser \
-    && mkdir -p /app/build /app/data \
+    && mkdir -p /app/build /app/data /app/workbench_data \
     && chown -R appuser:appuser /app
 USER appuser
 

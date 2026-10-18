@@ -93,8 +93,6 @@ def test_evaluate_grouped_cv_really_uses_group_kfold_not_plain_kfold(monkeypatch
     evaluate_grouped_cv(df, modalities=DEFAULT_MODALITIES, n_splits=4)
 
     assert captured, (
-        "GroupKFold.split ни разу не был вызван внутри evaluate_grouped_cv -- "
-        "похоже, валидация больше не группируется по field_id (§2.3.5)"
     )
     for train_idx, test_idx, groups in captured:
         assert groups is not None, "GroupKFold вызван без groups -- эквивалентно случайному KFold"

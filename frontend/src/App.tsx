@@ -4,12 +4,14 @@ import StatusBar from './components/StatusBar'
 // Разбито на отдельные чанки (lazy + code-splitting) -- recharts тянется
 // только той вкладкой, что его использует, а не в общий бандл при первой
 // загрузке страницы (см. предупреждение vite о чанке >500 КБ).
+const WorkbenchPage = lazy(() => import('./pages/WorkbenchPage'))
 const TrainingPage = lazy(() => import('./pages/TrainingPage'))
 const PredictPage = lazy(() => import('./pages/PredictPage'))
 const OptimizePage = lazy(() => import('./pages/OptimizePage'))
 const DatasetsPage = lazy(() => import('./pages/DatasetsPage'))
 
 const TABS = [
+  { id: 'workbench', label: 'Центр решений АПК', Component: WorkbenchPage },
   { id: 'training', label: 'Обучение', Component: TrainingPage },
   { id: 'predict', label: 'Тест на точке', Component: PredictPage },
   { id: 'optimize', label: 'Внесение удобрений', Component: OptimizePage },
@@ -17,7 +19,7 @@ const TABS = [
 ] as const
 
 export default function App() {
-  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('training')
+  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('workbench')
   const Active = TABS.find((t) => t.id === tab)!.Component
 
   return (

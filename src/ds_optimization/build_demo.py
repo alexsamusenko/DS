@@ -102,7 +102,6 @@ def run_cost(n_calls=50):
 
     times_ms = np.array(times) * 1000
     print(f"\nВычислительная стоимость оптимизации L5 ({len(plots)} участков), {n_calls} вызовов, CPU без GPU")
-    print(f"Формирование карты-задания: {times_ms.mean():.2f} ± {times_ms.std(ddof=1):.2f} мс (p50={np.percentile(times_ms, 50):.2f}, p95={np.percentile(times_ms, 95):.2f})")
 
     return times_ms
 
@@ -127,7 +126,7 @@ def run_sensitivity_dose_level(avg_doses=(30, 50, 70, 90, 110, 130)):
         gain_pct = (profit_diff / profit_uniform - 1) * 100
         rows.append({"avg_dose": avg_dose, "profit_diff": profit_diff, "profit_uniform": profit_uniform, "gain_pct": gain_pct})
 
-    print(f"\nЧувствительность выигрыша к среднему уровню бюджета")
+    print("\nЧувствительность выигрыша к среднему уровню бюджета")
     print(f"{'Средняя доза, кг/га':>20}{'Прибыль дифф.':>16}{'Прибыль равн.':>16}{'Выигрыш, %':>12}")
     for r in rows:
         print(f"{r['avg_dose']:>20}{r['profit_diff']:>16.1f}{r['profit_uniform']:>16.1f}{r['gain_pct']:>12.3f}")
