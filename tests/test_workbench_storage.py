@@ -29,3 +29,21 @@ def test_xlsx_extracts_preview():
     assert result["kind"] == "spreadsheet_preview"
     assert result["sheets"][0]["rows"][0][0]["value"] == "Поле"
     assert result["sheets"][0]["rows"][0][1]["value"] == "10"
+
+
+def test_pdf_text_layer_parser():
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=300, height=300)
+    buffer = io.BytesIO()
+    writer.write(buffer)
+    result = workbench_storage.extract(".pdf", buffer.getvalue())
+    assert result["kind"] == "pdf_text"
+    assert result["pages"] == 1
+
+
+def test_invalid_image_fails_closed():
+    result = workbench_storage.extract(".png", b"not-a-real-image")
+    assert result["kind"] == "unreadable"
+    assert result["reason"] == "PARSER_FAILED"
