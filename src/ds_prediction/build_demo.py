@@ -142,7 +142,7 @@ def run_sensitivity_sample_size(sizes=(15, 30, 60, 120, 240), n_years=5, seed=11
         base = evaluate_grouped_cv(df, modalities=DEFAULT_MODALITIES, model_factory=make_baseline_model, n_splits=n_splits)
         rows.append({"n_fields": n_fields, "n_obs": n_fields * n_years, "gbm": gbm, "baseline": base, "ratio": gbm / base})
 
-    print(f"\nЧувствительность соотношения RMSE(GBM)/RMSE(база) к объёму данных")
+    print("\nЧувствительность соотношения RMSE(GBM)/RMSE(база) к объёму данных")
     print(f"{'n_fields':>8}{'n_obs':>8}{'GBM':>10}{'база':>10}{'GBM/база':>12}")
     for r in rows:
         print(f"{r['n_fields']:>8}{r['n_obs']:>8}{r['gbm']:>10.3f}{r['baseline']:>10.3f}{r['ratio']:>12.3f}")
