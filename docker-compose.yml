@@ -32,7 +32,9 @@ services:
       # (см. service/routers/prediction.py) -- в production критично держать
       # том смонтированным и заранее наполненным реальной моделью.
       - ./build:/app/build
+      - ds_workbench:/app/workbench_data
     environment:
+      DS_WORKBENCH_DIR: /app/workbench_data
       DS_ENV: ${DS_ENV:-dev}
       DS_API_KEY: ${DS_API_KEY:-}
       DS_CORS_ORIGINS: ${DS_CORS_ORIGINS:-}
@@ -88,3 +90,6 @@ services:
     #           count: all
     #           capabilities: [gpu]
     command: ["python3", "training/finetune_ner.py", "--smoke-test", "--epochs", "30", "--batch-size", "16", "--lr", "3e-4"]
+
+volumes:
+  ds_workbench:
