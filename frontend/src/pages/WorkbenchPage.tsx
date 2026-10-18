@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { runPipeline, uploadWorkbenchFile, type WorkbenchUpload } from '../api'
+import { useEffect, useRef, useState } from 'react'
+import { downloadWorkbenchFile, listWorkbenchFiles, runPipeline, uploadWorkbenchFile, type WorkbenchUpload } from '../api'
 
 const DEMO = {
   farm_id: 'demo-farm',
@@ -39,6 +39,10 @@ export default function WorkbenchPage() {
   const [error, setError] = useState('')
   const [result, setResult] = useState<PipelineResult | null>(null)
   const [payload, setPayload] = useState(JSON.stringify(DEMO, null, 2))
+
+  useEffect(() => {
+    void listWorkbenchFiles().then((result) => setUploads(result.files)).catch((err: unknown) => setError(String(err)))
+  }, [])
 
   async function addFiles(files: FileList | null) {
     if (!files?.length) return
@@ -91,8 +95,8 @@ export default function WorkbenchPage() {
           <input aria-label="Исходные файлы" ref={picker} type="file" multiple accept=".csv,.tsv,.xlsx,.xls,.xlsm,.ods,.json,.geojson,.xml,.pdf,.doc,.docx,.odt,.txt,.jpg,.jpeg,.png,.tif,.tiff,.heic,.webp,.zip,.kml,.gpx,.gml,.shp,.shx,.dbf,.prj,.gpkg,.las,.log" onChange={(event) => { void addFiles(event.target.files) }} />
           {uploading && <p role="status">Приём файлов…</p>}
         </div>
-        {uploads.length > 0 && <div style={{ overflowX: 'auto' }}><table><thead><tr><th>Файл</th><th>Тип</th><th>Размер</th><th>Статус</th></tr></thead><tbody>{uploads.map((f) => <tr key={f.file_id}><td><strong>{f.filename}</strong><details><summary className="hint">Предпросмотр и контрольная сумма</summary><pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{JSON.stringify(f.preview, null, 2)}</pre><small>SHA-256: {f.sha256}</small></details></td><td>{f.category}</td><td>{(f.size_bytes / 1024).toFixed(1)} КБ</td><td>Зарегистрирован, не проверен</td></tr>)}</tbody></table></div>}
-        <p className="hint">CSV/TSV и JSON: предварительный просмотр. Excel, документы, рукописи, геоданные и изображения: сохранение без OCR, извлечения таблиц или агрономической интерпретации. Загрузка не запускает обучение.</p>
+        {uploads.length > 0 && <div style={{ overflowX: 'auto' }}><table><thead><tr><th>Файл</th><th>Тип</th><th>Размер</th><th>Статус</th></tr></thead><tbody>{uploads.map((f) => <tr key={f.file_id}><td><strong>{f.filename}</strong> <button type="button" onClick={() => { void downloadWorkbenchFile(f).catch((err: unknown) => setError(String(err))) }}>Скачать</button><details><summary className="hint">Предпросмотр и контрольная сумма</summary><pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{JSON.stringify(f.preview, null, 2)}</pre><small>SHA-256: {f.sha256}</small></details></td><td>{f.category}</td><td>{(f.size_bytes / 1024).toFixed(1)} КБ</td><td>Зарегистрирован, не проверен</td></tr>)}</tbody></table></div>}
+        <p className="hint">CSV/JSON, XLSX, DOCX, текстовые PDF и изображения: предпросмотр и экспериментальное извлечение, включая OCR фотографий. Рукописи могут распознаваться неточно. Все материалы хранятся в постоянном томе и доступны после перезапуска. Неподдерживаемые форматы сохраняются без извлечения. Загрузка не запускает обучение.</p>
       </div>
 
       <div className="card">
