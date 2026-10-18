@@ -139,3 +139,14 @@ def test_pipeline_rejects_nonfinite_response_parameters():
     }])
     with pytest.raises(ValueError, match="response_parameters values must be finite"):
         PipelineRunRequest.model_validate(request)
+
+
+
+def test_pipeline_route_is_registered_in_openapi():
+    from fastapi.testclient import TestClient
+
+    from service.app import app
+
+    paths = TestClient(app).get("/openapi.json").json()["paths"]
+    assert "/pipeline/runs" in paths
+    assert "post" in paths["/pipeline/runs"]
