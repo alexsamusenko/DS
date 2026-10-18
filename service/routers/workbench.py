@@ -18,11 +18,11 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 router = APIRouter(prefix="/workbench", tags=["АПК: загрузка исходных данных"])
 ROOT = Path(os.environ.get("DS_WORKBENCH_DIR", "build/workbench_uploads"))
 MAX_FILE_BYTES = 20 * 1024 * 1024
-EXTENSIONS = {".csv", ".tsv", ".xlsx", ".xls", ".json", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".txt", ".docx", ".odt"}
+EXTENSIONS = {".csv", ".tsv", ".xlsx", ".xls", ".json", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".txt", ".docx", ".doc", ".odt", ".ods", ".xlsm", ".heic", ".webp", ".geojson", ".kml", ".gpx", ".gml", ".xml", ".tif", ".tiff", ".zip", ".shp", ".dbf", ".shx", ".prj", ".gpkg", ".las", ".log"}
 EXT_TYPES = {
-    ".csv": "table", ".tsv": "table", ".xlsx": "table", ".xls": "table",
-    ".json": "structured", ".pdf": "document", ".docx": "document", ".odt": "document",
-    ".png": "image", ".jpg": "image", ".jpeg": "image", ".tif": "image", ".tiff": "image",
+    ".csv": "table", ".tsv": "table", ".xlsx": "table", ".xls": "table", ".xlsm": "table", ".ods": "table",
+    ".json": "structured", ".xml": "structured", ".geojson": "geospatial", ".kml": "geospatial", ".gpx": "geospatial", ".gml": "geospatial", ".shp": "geospatial", ".shx": "geospatial", ".dbf": "geospatial", ".prj": "geospatial", ".gpkg": "geospatial", ".las": "geospatial", ".pdf": "document", ".docx": "document", ".doc": "document", ".odt": "document",
+    ".png": "image", ".jpg": "image", ".jpeg": "image", ".tif": "image", ".tiff": "image", ".heic": "image", ".webp": "image", ".zip": "archive", ".log": "telemetry",
     ".txt": "document",
 }
 
@@ -46,7 +46,7 @@ def _preview(ext: str, content: bytes) -> dict:
             return {"kind": "table_preview", "columns": rows[0] if rows else [], "sample_rows": rows[1:]}
         except (UnicodeError, csv.Error):
             return {"kind": "unreadable", "reason": "CSV_DECODE_FAILED"}
-    if ext in {".xlsx", ".xls"}:
+    if ext in {".xlsx", ".xls", ".xlsm", ".ods"}:
         return {"kind": "table", "reason": "SPREADSHEET_PARSING_NOT_IMPLEMENTED"}
     return {"kind": EXT_TYPES[ext], "reason": "CONTENT_EXTRACTION_NOT_IMPLEMENTED"}
 
