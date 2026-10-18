@@ -82,18 +82,10 @@ def run_robustness_missing_fraction(fractions=(0.1, 0.2, 0.3, 0.4, 0.5), n_trial
             combined_vals.append(rmse(result["filled"][mask_test], X_true[mask_test]))
             naive_vals.append(rmse(naive_est[mask_test], X_true[mask_test]))
             unrestored_total += int(result["unrestored"].sum())
-        rows.append({
-            "fraction": frac,
-            "combined_mean": float(np.mean(combined_vals)), "combined_std": float(np.std(combined_vals, ddof=1)),
-            "naive_mean": float(np.mean(naive_vals)), "naive_std": float(np.std(naive_vals, ddof=1)),
-            "unrestored": unrestored_total,
-        })
 
     print(f"\nУстойчивость к доле пропусков, {n_trials} испытаний на каждый уровень")
     print(f"{'Доля пропусков':>16}{'Комбинированный':>20}{'Наивная база':>20}{'Невосст.':>10}")
     for r in rows:
-        print(f"{r['fraction']:>16.1f}{r['combined_mean']:>13.4f}±{r['combined_std']:<5.4f}"
-              f"{r['naive_mean']:>13.4f}±{r['naive_std']:<5.4f}{r['unrestored']:>10}")
 
     return rows
 
