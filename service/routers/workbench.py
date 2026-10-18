@@ -14,6 +14,8 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from service import workbench_storage
 
 router = APIRouter(prefix="/workbench", tags=["АПК: загрузка исходных данных"])
 ROOT = Path(os.environ.get("DS_WORKBENCH_DIR", "build/workbench_uploads"))
@@ -79,7 +81,8 @@ async def upload_source_file(file: UploadFile = File(...)) -> dict:
     target = ROOT / f"{file_id}{ext}"
     with target.open("xb") as out:
         out.write(data)
-    # No path is exposed to the browser; uploaded content is never executed.
+    preview = workbench_storage.extract(ext, data) or _preview(ext, data)
+    workbench_storage.save(file_id, original, ext, EXT_TYPES[ext], total, digest, preview)
     return {
         "file_id": file_id,
         "filename": original,
@@ -87,7 +90,30 @@ async def upload_source_file(file: UploadFile = File(...)) -> dict:
         "size_bytes": total,
         "sha256": digest,
         "status": "registered_untrusted",
-        "preview": _preview(ext, data),
+        "preview": preview,
         "pipeline_ready": False,
         "warnings": ["File registered, not semantically validated; extracted values must be mapped and reviewed before pipeline use."],
     }
+
+
+@router.get("/files")
+def list_source_files() -> dict:
+    files = workbench_storage.list_files()
+    return {"files": files, "total_returned": len(files)}
+
+
+@router.get("/files/{file_id}")
+def get_source_file(file_id: str) -> dict:
+    record = workbench_storage.get_file(file_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    return record
+
+
+@router.get("/files/{file_id}/download")
+def download_source_file(file_id: str) -> FileResponse:
+    record = get_source_file(file_id)
+    target = ROOT / (file_id + record["extension"])
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Stored file missing")
+    return FileResponse(target, media_type="application/octet-stream", filename=record["filename"])
