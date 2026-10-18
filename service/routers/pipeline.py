@@ -164,7 +164,6 @@ def _json_safe_matrix(values: Any) -> list[list[float | None]]:
     return [[float(value) if np.isfinite(value) else None for value in row] for row in matrix]
 
 
-def _stage(name: str, status: str, *, reason: str | None = None, data: dict | None = None, warnings: list[str] | None = None, metrics: dict | None = None) -> dict:
     return {"name": name, "status": status, "reason": reason, "data": data, "warnings": warnings or [], "metrics": metrics or {}}
 
 
@@ -184,7 +183,6 @@ def _ontology_stage(req: PipelineRunRequest) -> dict:
             "ontology",
             "ok",
             data={"field_entities_created": len(req.fields), "observation_semantics_mapped": False},
-            warnings=["Ontology stage validates field entities only; observations are not yet mapped to ontology individuals and no OWL reasoner validation is claimed."],
         )
     except Exception as exc:
         logger.exception("Pipeline ontology stage failed")
@@ -197,7 +195,6 @@ def _quality_stage(req: PipelineRunRequest) -> tuple[dict, dict[str, Any] | None
         return _stage("quality_gate", "ok", data={"missing_or_rejected_observation_ids": []}), None
     if req.gapfill is None:
         return _stage(
-            "quality_gate", "blocked", reason="MISSING_VALUES_REQUIRE_GAPFILL_MATRIX",
             data={"missing_or_rejected_observation_ids": [obs.observation_id for obs in missing]},
         ), None
     payload = req.gapfill
@@ -221,9 +218,7 @@ def _quality_stage(req: PipelineRunRequest) -> tuple[dict, dict[str, Any] | None
                 continue
             i, j = cell
             if (
-                i < 0 or j < 0 or i >= filled.shape[0] or j >= filled.shape[1]
                 or payload.field_ids[i] != obs.field_id
-                or unrestored[i, j] or not np.isfinite(filled[i, j])
             ):
                 unresolved.append(obs.observation_id)
         data = {
@@ -234,7 +229,6 @@ def _quality_stage(req: PipelineRunRequest) -> tuple[dict, dict[str, Any] | None
         }
         if unresolved:
             return _stage("gapfill", "blocked", reason="SOME_VALUES_REMAIN_UNRESTORED", data=data), result
-        return _stage("gapfill", "ok", data=data, warnings=["Restored values are not written back to the source observations; callers must persist cell-to-observation provenance before scientific use."]), result
     except (DataValidationError, ValueError, IndexError) as exc:
         return _stage("gapfill", "error", reason="GAPFILL_INPUT_OR_EXECUTION_ERROR", warnings=[str(exc)[:300]]), None
     except Exception as exc:
@@ -247,8 +241,6 @@ def _prediction_stage(req: PipelineRunRequest) -> dict:
         return _stage("predict", "blocked", reason="ENGINEERED_FEATURES_MISSING")
     if not req.options.synthetic_only:
         return _stage(
-            "predict", "blocked", reason="REAL_MODEL_PROVENANCE_NOT_ATTESTED",
-            warnings=["The existing API may load or train a demo model; this pipeline requires an explicit model-provenance registry before non-synthetic predictions can drive decisions."],
         )
     try:
         # Explicitly synthetic demo run: evaluate on a fixed synthetic dataset and retain the baseline comparison.
@@ -257,11 +249,9 @@ def _prediction_stage(req: PipelineRunRequest) -> dict:
         if groups < 2:
             return _stage("predict", "blocked", reason="INSUFFICIENT_GROUPS_FOR_VALIDATION")
         candidate_rmse = evaluate_grouped_cv(frame, modalities=DEFAULT_MODALITIES, n_splits=min(5, groups), model_factory=make_model)
-        baseline_rmse = evaluate_grouped_cv(frame, modalities=DEFAULT_MODALITIES, n_splits=min(5, groups), model_factory=make_baseline_model)
         if not np.isfinite(candidate_rmse) or not np.isfinite(baseline_rmse):
             return _stage("predict", "error", reason="NONFINITE_VALIDATION_METRIC")
         if candidate_rmse >= baseline_rmse:
-            return _stage("predict", "blocked", reason="MODEL_DID_NOT_BEAT_BASELINE", metrics={"candidate_rmse": candidate_rmse, "baseline_rmse": baseline_rmse}, warnings=["Candidate model did not beat the linear baseline; no field predictions were emitted."])
         model = train_model(frame, modalities=DEFAULT_MODALITIES, model_factory=make_model)
         predictions = []
         for field in req.fields:
@@ -273,15 +263,12 @@ def _prediction_stage(req: PipelineRunRequest) -> dict:
             import pandas as pd
             predicted = float(model.predict(pd.DataFrame([row])[ALL_COLUMNS])[0])
             predictions.append({"field_id": field.field_id, "predicted_yield_centner_ha": predicted})
-        return _stage("predict", "ok", data={"predictions": predictions, "model": "GradientBoostingRegressor", "training_data": "synthetic_demo"}, metrics={"candidate_rmse": candidate_rmse, "baseline_rmse": baseline_rmse}, warnings=["Synthetic-only prediction; not evidence of generalization to real farms."])
     except Exception as exc:
         logger.exception("Pipeline prediction stage failed")
         return _stage("predict", "error", reason="PREDICTION_FAILED", warnings=[type(exc).__name__])
 
 
 def _optimization_stage(req: PipelineRunRequest) -> dict:
-    if req.response_model_evidence_status != "validated" and not (req.options.synthetic_only and req.response_model_evidence_status == "synthetic"):
-        return _stage("optimize", "blocked", reason="RESPONSE_MODEL_NOT_VALIDATED", warnings=["Fertilizer response parameters must be explicitly supplied and independently validated; prediction output is not substituted for a response model."])
     if any(field.response_parameters is None for field in req.fields):
         return _stage("optimize", "blocked", reason="RESPONSE_PARAMETERS_MISSING")
     plots = []
@@ -289,7 +276,6 @@ def _optimization_stage(req: PipelineRunRequest) -> dict:
         params = field.response_parameters or {}
         if any(key not in params for key in ("baseline", "R", "s")):
             return _stage("optimize", "blocked", reason="RESPONSE_PARAMETERS_INCOMPLETE", data={"field_id": field.field_id})
-        plots.append({"plot_id": field.plot_id, "baseline": float(params["baseline"]), "R": float(params["R"]), "s": float(params["s"]), "area": field.area_ha})
     economics = req.economics
     budget_options = []
     if economics.fertilizer_quantity_kg_max is not None:
@@ -301,18 +287,12 @@ def _optimization_stage(req: PipelineRunRequest) -> dict:
         import pandas as pd
         plots_df = pd.DataFrame(plots)
         if budget is None:
-            doses = optimize_unconstrained(plots_df, economics.dose_min_kg_ha, economics.dose_max_kg_ha, economics.price_yield_per_centner, economics.fertilizer_price_per_kg)
         else:
-            doses = optimize_with_budget(plots_df, budget, economics.dose_min_kg_ha, economics.dose_max_kg_ha, economics.price_yield_per_centner, economics.fertilizer_price_per_kg)
         if len(doses) != len(plots) or not np.isfinite(doses).all():
             return _stage("optimize", "error", reason="INVALID_OPTIMIZER_OUTPUT")
         quantity_used = float(np.sum(np.asarray(doses) * plots_df["area"].to_numpy()))
         if budget is not None and quantity_used > budget + 1e-6:
-            return _stage("optimize", "error", reason="OPTIMIZER_BUDGET_NOT_RESPECTED", data={"quantity_used_kg": quantity_used, "budget_kg": budget})
         return _stage(
-            "optimize", "ok",
-            data={"plot_ids": [p["plot_id"] for p in plots], "field_ids": [f.field_id for f in req.fields], "doses_kg_ha": [float(x) for x in doses], "quantity_used_kg": quantity_used, "quantity_budget_kg": budget, "budget_currency_amount": economics.budget_amount},
-            warnings=["Optimization is single-nutrient and uses the supplied Mitscherlich response coefficients; multi-nutrient shared-budget optimization is not implemented."],
         )
     except (OptimizationInputError, ValueError, RuntimeError) as exc:
         return _stage("optimize", "error", reason="OPTIMIZATION_FAILED", warnings=[str(exc)[:300]])
@@ -329,15 +309,12 @@ def create_pipeline_run(raw: dict[str, Any]) -> dict[str, Any]:
         req = PipelineRunRequest.model_validate(raw)
     except Exception as exc:
         return {
-            "schema_version": "1.0", "run_id": run_id, "status": "error",
             "recommendation": {"status": "withheld", "reason": "INVALID_REQUEST", "actions": []},
             "stages": [_stage("intake", "error", reason="INVALID_REQUEST")],
             "errors": [{"code": "INVALID_REQUEST", "message": str(exc)[:1000]}],
-            "lineage": {"input_fingerprint": hashlib.sha256(json.dumps(raw, sort_keys=True, default=str).encode()).hexdigest(), "created_at": created_at},
         }
 
     payload = req.model_dump(mode="json")
-    stages = [_stage("intake", "ok", data={"field_count": len(req.fields), "observation_count": len(req.observations), "synthetic_only": req.options.synthetic_only})]
     ontology = _ontology_stage(req)
     stages.append(ontology)
 
@@ -346,28 +323,21 @@ def create_pipeline_run(raw: dict[str, Any]) -> dict[str, Any]:
     if gapfill_result is not None and quality["name"] == "gapfill":
         quality["data"] = {**(quality.get("data") or {}), "filled_matrix": _json_safe_matrix(gapfill_result["filled"])}
 
-    prediction = _prediction_stage(req) if ontology["status"] == "ok" and quality["status"] == "ok" else _stage("predict", "blocked", reason="UPSTREAM_GATE_FAILED")
     stages.append(prediction)
-    optimization = _optimization_stage(req) if prediction["status"] == "ok" else _stage("optimize", "blocked", reason="PREDICTION_STAGE_NOT_READY")
     stages.append(optimization)
 
     actions = []
     if optimization["status"] == "ok":
-        actions = [{"field_id": field_id, "plot_id": plot_id, "action": "fertilizer_application", "dose_kg_ha": dose} for field_id, plot_id, dose in zip(optimization["data"]["field_ids"], optimization["data"]["plot_ids"], optimization["data"]["doses_kg_ha"], strict=True)]
         rec_status = "exploratory" if req.options.synthetic_only else ("approved" if req.options.human_approved else "draft")
-        recommendation = {"status": rec_status, "objective": "maximize_expected_profit", "actions": actions, "economics": {"quantity_used_kg": optimization["data"]["quantity_used_kg"], "quantity_budget_kg": optimization["data"]["quantity_budget_kg"]}}
     else:
         recommendation = {"status": "withheld", "reason": optimization.get("reason") or "OPTIMIZATION_NOT_READY", "actions": []}
 
     if req.options.export_requested:
-        if not req.options.synthetic_only or not req.options.allow_synthetic_geometry_export or not req.options.human_approved or optimization["status"] != "ok":
             stages.append(_stage("isoexport", "blocked", reason="EXPORT_REQUIRES_APPROVAL_AND_EXPLICIT_SYNTHETIC_GEOMETRY_MODE"))
         else:
             try:
                 import pandas as pd
                 plots_df = pd.DataFrame([{"plot_id": f.plot_id, "area": f.area_ha} for f in req.fields])
-                xml = export_task_data(plots_df, np.asarray(optimization["data"]["doses_kg_ha"], dtype=float), customer_name=req.farm_id, farm_name=req.season_id, task_designator=f"{req.crop} synthetic demo")
-                stages.append(_stage("isoexport", "ok", data={"format": "ISO11783-10 XML", "xml": xml, "geometry_mode": "synthetic_demo"}, warnings=["This export contains synthetic geometry and is for testing only; it is not suitable for machine control."]))
             except Exception as exc:
                 logger.exception("Pipeline ISOXML export failed")
                 stages.append(_stage("isoexport", "error", reason="ISOXML_EXPORT_FAILED", warnings=[type(exc).__name__]))
@@ -378,7 +348,4 @@ def create_pipeline_run(raw: dict[str, Any]) -> dict[str, Any]:
     if req.options.synthetic_only:
         warnings.append("Synthetic-only run: no output is evidence of agronomic or economic effectiveness on a real farm.")
     return {
-        "schema_version": "1.0", "run_id": req.request_id or run_id, "status": overall,
-        "recommendation": recommendation, "stages": stages, "warnings": warnings, "errors": [],
-        "lineage": {"input_fingerprint": _fingerprint(payload), "created_at": created_at, "farm_id": req.farm_id, "season_id": req.season_id},
     }
