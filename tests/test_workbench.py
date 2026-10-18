@@ -7,8 +7,8 @@ from service.app import app
 
 
 def test_workbench_upload_csv_is_registered_not_pipeline_ready(tmp_path, monkeypatch):
-    from service.routers import workbench
     from service import workbench_storage
+    from service.routers import workbench
 
     monkeypatch.setattr(workbench, "ROOT", tmp_path)
     monkeypatch.setattr(workbench_storage, "ROOT", tmp_path)
@@ -30,8 +30,8 @@ def test_workbench_upload_csv_is_registered_not_pipeline_ready(tmp_path, monkeyp
 
 
 def test_workbench_rejects_unsupported_extension(tmp_path, monkeypatch):
-    from service.routers import workbench
     from service import workbench_storage
+    from service.routers import workbench
 
     monkeypatch.setattr(workbench, "ROOT", tmp_path)
     monkeypatch.setattr(workbench_storage, "ROOT", tmp_path)
@@ -44,8 +44,8 @@ def test_workbench_rejects_unsupported_extension(tmp_path, monkeypatch):
 
 
 def test_workbench_rejects_empty_file(tmp_path, monkeypatch):
-    from service.routers import workbench
     from service import workbench_storage
+    from service.routers import workbench
 
     monkeypatch.setattr(workbench, "ROOT", tmp_path)
     monkeypatch.setattr(workbench_storage, "ROOT", tmp_path)
