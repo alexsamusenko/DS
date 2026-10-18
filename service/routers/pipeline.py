@@ -9,7 +9,7 @@ import hashlib
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -21,11 +21,11 @@ from ds_ontology.integration import get_or_create_pole
 from ds_ontology.schema import build_schema
 from ds_optimization.optimize import optimize_unconstrained, optimize_with_budget
 from ds_optimization.validation import OptimizationInputError
-from ds_preprocessing import fill_gaps
-from ds_preprocessing.validation import DataValidationError
 from ds_prediction.features import ALL_COLUMNS
 from ds_prediction.model import DEFAULT_MODALITIES, evaluate_grouped_cv, make_baseline_model, make_model, train_model
 from ds_prediction.synthetic import generate_dataset
+from ds_preprocessing import fill_gaps
+from ds_preprocessing.validation import DataValidationError
 from service.schemas import PredictionFeatures
 
 logger = logging.getLogger("ds.pipeline")
@@ -324,7 +324,7 @@ def _optimization_stage(req: PipelineRunRequest) -> dict:
 @router.post("/runs", summary="Запустить сквозной конвейер с блокировкой небезопасных решений")
 def create_pipeline_run(raw: dict[str, Any]) -> dict[str, Any]:
     run_id = "dsrun_" + uuid.uuid4().hex[:12]
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(UTC).isoformat()
     try:
         req = PipelineRunRequest.model_validate(raw)
     except Exception as exc:
@@ -353,7 +353,7 @@ def create_pipeline_run(raw: dict[str, Any]) -> dict[str, Any]:
 
     actions = []
     if optimization["status"] == "ok":
-        actions = [{"field_id": field_id, "plot_id": plot_id, "action": "fertilizer_application", "dose_kg_ha": dose} for field_id, plot_id, dose in zip(optimization["data"]["field_ids"], optimization["data"]["plot_ids"], optimization["data"]["doses_kg_ha"])]
+        actions = [{"field_id": field_id, "plot_id": plot_id, "action": "fertilizer_application", "dose_kg_ha": dose} for field_id, plot_id, dose in zip(optimization["data"]["field_ids"], optimization["data"]["plot_ids"], optimization["data"]["doses_kg_ha"], strict=True)]
         rec_status = "exploratory" if req.options.synthetic_only else ("approved" if req.options.human_approved else "draft")
         recommendation = {"status": rec_status, "objective": "maximize_expected_profit", "actions": actions, "economics": {"quantity_used_kg": optimization["data"]["quantity_used_kg"], "quantity_budget_kg": optimization["data"]["quantity_budget_kg"]}}
     else:
