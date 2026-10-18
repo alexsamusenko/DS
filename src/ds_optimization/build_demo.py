@@ -102,7 +102,6 @@ def run_cost(n_calls=50):
 
     times_ms = np.array(times) * 1000
     print(f"\nВычислительная стоимость оптимизации L5 ({len(plots)} участков), {n_calls} вызовов, CPU без GPU")
-    print(f"Формирование карты-задания: {times_ms.mean():.2f} ± {times_ms.std(ddof=1):.2f} мс (p50={np.percentile(times_ms, 50):.2f}, p95={np.percentile(times_ms, 95):.2f})")
 
     return times_ms
 
