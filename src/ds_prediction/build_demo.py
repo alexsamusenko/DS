@@ -122,7 +122,6 @@ def run_cost(n_repeats_train=5, n_predict_calls=200):
 
     print(f"\nВычислительная стоимость модели L4, {n_repeats_train} обучений, {n_predict_calls} прогнозов, CPU без GPU")
     print(f"Обучение на {len(X)} наблюдениях: {train_times.mean() * 1000:.1f} ± {train_times.std(ddof=1) * 1000:.1f} мс")
-    print(f"Единичный прогноз: {np.mean(predict_times_ms):.2f} мс (p50={np.percentile(predict_times_ms, 50):.2f}, p95={np.percentile(predict_times_ms, 95):.2f})")
     print(f"Пропускная способность (последовательные единичные вызовы): {1000 / np.mean(predict_times_ms):.0f} прогнозов/с")
 
     return {"train_ms": train_times * 1000, "predict_ms": predict_times_ms}
