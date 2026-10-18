@@ -1,5 +1,4 @@
 """Persistent local catalog and best-effort extraction for untrusted farm documents."""
-import csv
 import io
 import json
 import os
