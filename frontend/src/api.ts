@@ -184,3 +184,28 @@ export async function exportIsoxml(req: IsoxmlExportRequest): Promise<Blob> {
   }
   return resp.blob()
 }
+
+export interface WorkbenchUpload {
+  file_id: string
+  filename: string
+  category: string
+  size_bytes: number
+  sha256: string
+  status: string
+  pipeline_ready: boolean
+  preview: Record<string, unknown>
+}
+
+export function uploadWorkbenchFile(file: File): Promise<WorkbenchUpload> {
+  const body = new FormData()
+  body.append('file', file)
+  return request<WorkbenchUpload>('/workbench/files', { method: 'POST', body })
+}
+
+export function runPipeline(payload: Record<string, unknown>): Promise<unknown> {
+  return request<unknown>('/pipeline/runs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
